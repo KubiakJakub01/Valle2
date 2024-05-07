@@ -33,6 +33,7 @@ class ValleAR(nn.Module):
                 batch_first=True,
             ),
             num_layers=hparams.num_layers,
+            norm=nn.LayerNorm(hparams.d_model),
         )
 
         # Project to output
