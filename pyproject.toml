@@ -12,6 +12,13 @@ pylint = "pylint --rcfile pyproject.toml valle"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+torch = { version = "2.2.1+cu121", source = "torch" }
+torchaudio = { version = "2.2.1+cu121", source = "torch" }
+
+[[tool.poetry.source]]
+name = "torch"
+url = "https://download.pytorch.org/whl/cu121"
+priority = "supplemental"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"
