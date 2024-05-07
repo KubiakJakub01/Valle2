@@ -5,9 +5,19 @@ description = "Implementation of TTS and ASR model based on VALL-E X architectur
 authors = ["KubiakJakub01 <kubiak.jakub01@gmail.com>"]
 readme = "README.md"
 
+[tool.poetry-exec-plugin.commands]
+ruff = "ruff check valle"
+mypy = "mypy --ignore-missing-imports valle"
+pylint = "pylint --rcfile pyproject.toml valle"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.7.0"
+ruff = "^0.3.5"
+mypy = "^1.9.0"
+pylint = "^3.1.0"
 
 [build-system]
 requires = ["poetry-core"]
