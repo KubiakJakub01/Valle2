@@ -46,3 +46,31 @@ class PositionalEncoding(nn.Module):
         x = rearrange(x, 'b t c -> t b c')
         x = x + self.pe[: x.size(0), :]
         return rearrange(self.dropout(x), 't b c -> b t c')
+
+
+class AdaptiveLayerNorm(nn.Module):
+    """Adaptive Layer Normalization"""
+
+    def __init__(self, d_model, norm) -> None:
+        super().__init__()
+        self.project_layer = nn.Linear(d_model, 2 * d_model)
+        self.norm = norm
+        self.d_model = d_model
+        self.eps = self.norm.eps
+
+    def forward(self, x: torch.Tensor, embedding: torch.Tensor | None = None) -> torch.Tensor:
+        if isinstance(x, tuple):
+            x, embedding = x
+            weight, bias = torch.split(
+                self.project_layer(embedding),
+                split_size_or_sections=self.d_model,
+                dim=-1,
+            )
+            return (weight * self.norm(x) + bias, embedding)
+
+        weight, bias = torch.split(
+            self.project_layer(embedding),
+            split_size_or_sections=self.d_model,
+            dim=-1,
+        )
+        return weight * self.norm(x) + bias
