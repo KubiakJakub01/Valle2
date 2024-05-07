@@ -16,6 +16,8 @@ torch = { version = "2.2.1+cu121", source = "torch" }
 torchaudio = { version = "2.2.1+cu121", source = "torch" }
 einops = "^0.8.0"
 numpy = "^1.26.4"
+coloredlogs = "^15.0.1"
+matplotlib = "^3.8.4"
 
 [[tool.poetry.source]]
 name = "torch"
