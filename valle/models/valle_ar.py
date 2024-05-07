@@ -80,7 +80,6 @@ class ValleAR(nn.Module):
             ),
             dim=1,
         )
-
         y_mask = torch.cat(
             (
                 torch.zeros((y_len, x_len), dtype=torch.bool, device=self.device),
@@ -90,7 +89,6 @@ class ValleAR(nn.Module):
             ),
             dim=1,
         )
-
         mask = torch.cat((x_mask, y_mask), dim=0)
 
         # Decoder

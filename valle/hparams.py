@@ -6,6 +6,9 @@ class ValleHparams:
     # Input features
     vocab_size: int = field(default=256, metadata={'help': 'Vocab size'})
     num_audio_tokens: int = field(default=1024, metadata={'help': 'Number of audio tokens'})
+    num_quantizers: int = field(
+        default=8, metadata={'help': 'Number of quantizers layers from the audio codec'}
+    )
 
     # Model
     d_model: int = field(default=256, metadata={'help': 'Model dimension'})
