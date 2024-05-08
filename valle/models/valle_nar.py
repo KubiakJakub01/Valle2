@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 from ..hparams import ValleHparams
@@ -50,5 +51,5 @@ class ValleAR(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(self):
+    def forward(self, texts: list[torch.Tensor], audio: list[torch.Tensor]):
         raise NotImplementedError
