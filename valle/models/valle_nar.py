@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
 from .modules import AdaptiveLayerNorm, PositionalEncoding
@@ -51,5 +52,10 @@ class ValleAR(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(self, texts: list[torch.Tensor], audio: list[torch.Tensor]):
-        raise NotImplementedError
+    def forward(self, tokens_list: list[torch.Tensor], codes_list: list[torch.Tensor]):
+        assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
+
+        # Prepare tokens
+        x = pad_sequence(tokens_list, batch_first=True)
+        x = self.tokens_emb(x)  # (b t c)
+        x = self.tokens_position_emb(x)
