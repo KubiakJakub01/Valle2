@@ -51,8 +51,8 @@ class ValleAR(nn.Module):
         """Forward pass.
 
         Args:
-            tokens_list: List of tokens tensor (b t).
-            codes_list: List of audio codes tensor (b t1).
+            tokens_list: List of tokens tensor (tokens_len)
+            codes_list: List of audio codes tensor (1, codes_len)
         """
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
