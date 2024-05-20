@@ -2,7 +2,6 @@ import random
 
 import torch
 import torch.nn as nn
-from einops import rearrange
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
@@ -78,28 +77,32 @@ class ValleAR(nn.Module):
         # Prepare prompt and target audio
         # Draw a random quantization layer
         layer = random.randint(1, self.hparams.num_quantizers - 1)
-        codes_layer = rearrange(
-            pad_sequence([codes[layer] for codes in codes_list], batch_first=True), 'b 1 t -> b t'
-        )
-        prompt_codes, target_codes = self._prepare_promt_audio(codes_layer)
+        codes = pad_sequence(codes_list, batch_first=True)
+        prompt_codes, prev_codes, target_codes = self._prepare_audio_codes(codes, layer)
 
         log_info(f'Prompt codes shape: {prompt_codes.shape}')
         log_info(f'Target codes shape: {target_codes.shape}')
+        log_info(f'Previous codes shape: {prev_codes.shape}')
 
-    def _prepare_promt_audio(self, codes: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _prepare_audio_codes(
+        self, codes: torch.Tensor, layer: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Prepare prompt audio.
 
         Args:
-            codes: Audio codes (batch_size, codes_len).
+            codes: Audio codes (batch_size, quantization_layers, codes_len).
 
         Returns:
-            x: Prompt audio (b t c).
-            x_pos: Prompt audio position (b t c).
+            prompt_codes: Prompt audio codes (batch_size, quantization_layers, prompt_len)
+            prev_codes: Audio codes from previous layer (batch_size, 1, prompt_len)
+            target_codes: Target audio codes (batch_size, 1, target_len)
         """
         # Cut 3 seconds of audio or 1/3 of the audio
-        _, codes_len = codes.shape
+        codes_len = codes.shape[-1]
         start = min(codes_len // 3, 3 * self.hparams.quantization_factor)
-        prompt_codes = codes[:, :start]
-        target_codes = codes[:, start:]
+        prompt_codes = codes[:, :, :start]
+        target_codes = codes[:, :, start:]
+        prev_codes = target_codes[:, layer - 1, :]
+        target_codes = target_codes[:, layer, :]
 
-        return prompt_codes, target_codes
+        return prompt_codes, prev_codes, target_codes
