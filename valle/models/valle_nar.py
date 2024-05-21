@@ -78,15 +78,13 @@ class ValleAR(nn.Module):
         # Draw a random quantization layer
         layer = random.randint(1, self.hparams.num_quantizers - 1)
         codes = pad_sequence(codes_list, batch_first=True)
-        prompt_codes, prev_codes, target_codes = self._prepare_audio_codes(codes, layer)
+        y_emb, prefix_len = self._prepare_audio_codes(codes, layer)
 
-        log_info(f'Prompt codes shape: {prompt_codes.shape}')
-        log_info(f'Target codes shape: {target_codes.shape}')
-        log_info(f'Previous codes shape: {prev_codes.shape}')
+        log_info(f'Prompt length: {prefix_len}')
+        log_info(f'Quantization layer: {layer}')
+        log_info(f'Prompt audio shape: {y_emb.shape}')
 
-    def _prepare_audio_codes(
-        self, codes: torch.Tensor, layer: int
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
         """Prepare prompt audio.
 
         Args:
@@ -99,10 +97,13 @@ class ValleAR(nn.Module):
         """
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
-        start = min(codes_len // 3, 3 * self.hparams.quantization_factor)
-        prompt_codes = codes[:, :, :start]
-        target_codes = codes[:, :, start:]
-        prev_codes = target_codes[:, layer - 1, :]
-        target_codes = target_codes[:, layer, :]
+        prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
+        prompts_codes = self.audio_embs[0](codes[:, :, :prefix_len])
+        emb_codes = self.audio_embs[0](codes[:, :, prefix_len:])
+        for j in range(1, self.hparams.num_quantizers):
+            prompts_codes += self.audio_embs[j](codes[:, j, :prefix_len])
+            if j < nar_stage:
+                emb_codes += self.audio_embs[j](codes[:, j, prefix_len:])
+        y_emb = torch.concat([prompts_codes, emb_codes], axis=2)
 
-        return prompt_codes, prev_codes, target_codes
+        return y_emb, prefix_len
