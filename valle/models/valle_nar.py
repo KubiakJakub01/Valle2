@@ -2,10 +2,10 @@ import random
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from ..utils import log_info
 from .modules import AdaptiveLayerNorm, PositionalEncoding
 
 
@@ -62,7 +62,7 @@ class ValleAR(nn.Module):
 
         Args:
             tokens_list: List of token sequences (token_len).
-            codes_list: List of audio codes (quantization_layers, codes_len).
+            codes_list: List of audio codes (codes_len, quantization_layers).
 
         Returns:
             loss: Loss value.
@@ -70,6 +70,7 @@ class ValleAR(nn.Module):
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
         # Prepare tokens
+        x_lens = list(map(len, tokens_list))
         x = pad_sequence(tokens_list, batch_first=True)
         x = self.tokens_emb(x)  # (b t c)
         x = self.tokens_position_emb(x)
@@ -79,31 +80,45 @@ class ValleAR(nn.Module):
         layer = random.randint(1, self.hparams.num_quantizers - 1)
         codes = pad_sequence(codes_list, batch_first=True)
         y_emb, prefix_len = self._prepare_audio_codes(codes, layer)
+        y_emb = self.audio_position_emb(y_emb)
 
-        log_info(f'Prompt length: {prefix_len}')
-        log_info(f'Quantization layer: {layer}')
-        log_info(f'Prompt audio shape: {y_emb.shape}')
+        # Prepare target audio
+        target = codes[:, prefix_len:, layer]
+
+        # Concatenate tokens and codes
+        xy = torch.cat([x, y_emb], dim=1)
+
+        # Forward pass
+        z = self.decoder((xy, self.stage_embs[layer - 1].weight))
+        z = z[:, max(x_lens) + prefix_len]
+
+        # Project to output
+        logits = self.proj(z)
+
+        # Compute loss
+        loss = F.cross_entropy(logits, target)
+
+        return loss
 
     def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
         """Prepare prompt audio.
 
         Args:
-            codes: Audio codes (batch_size, quantization_layers, codes_len).
+            codes: Audio codes (batch_size, codes_len, quantization_layers).
 
         Returns:
-            prompt_codes: Prompt audio codes (batch_size, quantization_layers, prompt_len)
-            prev_codes: Audio codes from previous layer (batch_size, 1, prompt_len)
-            target_codes: Target audio codes (batch_size, 1, target_len)
+            y_emb: Prompt audio embeddings (batch_size, codes_len, d_model).
+            prefix_len: Length of the prompt audio.
         """
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
         prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
-        prompts_codes = self.audio_embs[0](codes[:, :, :prefix_len])
-        emb_codes = self.audio_embs[0](codes[:, :, prefix_len:])
+        prompts_codes = self.audio_embs[0](codes[:, :prefix_len, 0])
+        emb_codes = self.audio_embs[0](codes[:, prefix_len:, 0])
         for j in range(1, self.hparams.num_quantizers):
-            prompts_codes += self.audio_embs[j](codes[:, j, :prefix_len])
+            prompts_codes += self.audio_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
-                emb_codes += self.audio_embs[j](codes[:, j, prefix_len:])
-        y_emb = torch.concat([prompts_codes, emb_codes], axis=2)
+                emb_codes += self.audio_embs[j](codes[:, prefix_len:, j])
+        y_emb = torch.concat([prompts_codes, emb_codes], axis=1)
 
         return y_emb, prefix_len
