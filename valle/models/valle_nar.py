@@ -9,7 +9,7 @@ from ..hparams import ValleHparams
 from .modules import AdaptiveLayerNorm, PositionalEncoding
 
 
-class ValleAR(nn.Module):
+class ValleNAR(nn.Module):
     def __init__(self, hparams: ValleHparams):
         super().__init__()
         self.hparams = hparams
@@ -43,6 +43,7 @@ class ValleAR(nn.Module):
                 dropout=hparams.dropout,
                 activation=hparams.activation,
                 batch_first=True,
+                norm_first=True,
             ),
             num_layers=hparams.num_layers,
             norm=AdaptiveLayerNorm(d_model=hparams.d_model, norm=nn.LayerNorm(hparams.d_model)),
