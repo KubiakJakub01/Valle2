@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 
 
@@ -23,3 +24,11 @@ class ValleHparams:
     @property
     def quantization_factor(self):
         return self.sampling_rate // self.polling_factor
+
+    @staticmethod
+    def from_dict(hparams_dict: dict):
+        return ValleHparams(**hparams_dict)
+
+    @staticmethod
+    def from_json(hparams_json: str):
+        return ValleHparams.from_dict(json.loads(hparams_json))
