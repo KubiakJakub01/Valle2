@@ -25,10 +25,12 @@ class ValleHparams:
     def quantization_factor(self):
         return self.sampling_rate // self.polling_factor
 
-    @staticmethod
-    def from_dict(hparams_dict: dict):
-        return ValleHparams(**hparams_dict)
+    @classmethod
+    def from_dict(cls, hparams_dict):
+        return cls(**hparams_dict)
 
-    @staticmethod
-    def from_json(hparams_json: str):
-        return ValleHparams.from_dict(json.loads(hparams_json))
+    @classmethod
+    def from_json(cls, json_file):
+        with open(json_file, encoding='utf-8') as f:
+            hparams_dict = json.load(f)
+        return cls.from_dict(hparams_dict)
