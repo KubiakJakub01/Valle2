@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 
 
@@ -9,6 +10,8 @@ class ValleHparams:
     num_quantizers: int = field(
         default=8, metadata={'help': 'Number of quantizers layers from the audio codec'}
     )
+    sampling_rate: int = field(default=16000, metadata={'help': 'Sampling rate'})
+    polling_factor: int = field(default=320, metadata={'help': 'Polling factor'})
 
     # Model
     d_model: int = field(default=256, metadata={'help': 'Model dimension'})
@@ -17,3 +20,17 @@ class ValleHparams:
     dropout: float = field(default=0.1, metadata={'help': 'Dropout rate'})
     activation: str = field(default='relu', metadata={'help': 'Activation function'})
     num_layers: int = field(default=6, metadata={'help': 'Number of layers'})
+
+    @property
+    def quantization_factor(self):
+        return self.sampling_rate // self.polling_factor
+
+    @classmethod
+    def from_dict(cls, hparams_dict):
+        return cls(**hparams_dict)
+
+    @classmethod
+    def from_json(cls, json_file):
+        with open(json_file, encoding='utf-8') as f:
+            hparams_dict = json.load(f)
+        return cls.from_dict(hparams_dict)
