@@ -114,12 +114,12 @@ class ValleNAR(nn.Module):
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
         prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
-        prompts_codes = self.audio_embs[0](codes[:, :prefix_len, 0])
-        emb_codes = self.audio_embs[0](codes[:, prefix_len:, 0])
+        prompts_codes: torch.Tensor = self.audio_embs[0](codes[:, :prefix_len, 0])
+        emb_codes: torch.Tensor = self.audio_embs[0](codes[:, prefix_len:, 0])
         for j in range(1, self.hparams.num_quantizers):
             prompts_codes += self.audio_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
                 emb_codes += self.audio_embs[j](codes[:, prefix_len:, j])
-        y_emb = torch.concat([prompts_codes, emb_codes], axis=1)
+        y_emb = torch.concat((prompts_codes, emb_codes), dim=1)
 
         return y_emb, prefix_len
