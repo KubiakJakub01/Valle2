@@ -74,3 +74,16 @@ class AdaptiveLayerNorm(nn.Module):
             dim=-1,
         )
         return weight * self.norm(x) + bias
+
+
+class FeedForward(nn.Module):
+    """Feed Forward Neural Network"""
+
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1) -> None:
+        super().__init__()
+        self.linear_1 = nn.Linear(d_model, d_ff)
+        self.dropout = nn.Dropout(dropout)
+        self.linear_2 = nn.Linear(d_ff, d_model)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
