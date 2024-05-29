@@ -87,3 +87,35 @@ class FeedForward(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
+
+
+class EncoderLayer(nn.Module):
+    """Encoder Layer"""
+
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int,
+        dropout: float,
+        activation: nn.Module,
+        norm: nn.Module,
+    ) -> None:
+        super().__init__()
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.ffn = FeedForward(d_model, dim_feedforward, dropout=dropout)
+        self.norm1 = norm(d_model)
+        self.norm2 = norm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.activation = activation
+
+    def forward(self, src: torch.Tensor, src_mask: torch.Tensor | None = None) -> torch.Tensor:
+        src2 = self.self_attn(src, src, src, attn_mask=src_mask, need_weights=False)[0]
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        src2 = self.ffn(src)
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        return src
