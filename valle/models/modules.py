@@ -112,13 +112,22 @@ class EncoderLayer(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
         self.activation = activation
 
-    def forward(self, src: torch.Tensor, src_mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        src: torch.Tensor,
+        src_mask: torch.Tensor | None = None,
+        embedding: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         src2 = self.self_attn(src, src, src, attn_mask=src_mask, need_weights=False)[0]
         src = src + self.dropout1(src2)
+        if embedding is not None:
+            src = (src, embedding)
         src = self.norm1(src)
 
         src2 = self.ffn(src)
         src = src + self.dropout2(src2)
+        if embedding is not None:
+            src = (src, embedding)
         src = self.norm2(src)
         return src
 
@@ -143,19 +152,24 @@ class Encoder(nn.Module):
             ]
         )
 
-    def forward(self, src: torch.Tensor, src_mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self,
+        src: torch.Tensor,
+        src_mask: torch.Tensor | None = None,
+        embedding: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         for layer in self.layers:
-            src = layer(src, src_mask)
+            src = layer(src, src_mask, embedding)
         return src
 
-    def _get_norm(self) -> nn.Module:
+    def _get_norm(self):
         norm_dict = {
             'LayerNorm': nn.LayerNorm,
             'AdaptiveLayerNorm': AdaptiveLayerNorm,
         }
         return norm_dict[self.hparams.norm]
 
-    def _get_activation(self) -> nn.Module:
+    def _get_activation(self):
         activation_dict = {
             'relu': nn.ReLU,
             'gelu': nn.GELU,
