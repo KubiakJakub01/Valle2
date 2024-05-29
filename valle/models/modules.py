@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
+from ..hparams import ValleHparams
+
 
 class PositionalEncoding(nn.Module):
     r"""Inject some information about the relative or \
@@ -119,3 +121,43 @@ class EncoderLayer(nn.Module):
         src = src + self.dropout2(src2)
         src = self.norm2(src)
         return src
+
+
+class Encoder(nn.Module):
+    """Transformer Encoder"""
+
+    def __init__(self, hparams: ValleHparams) -> None:
+        super().__init__()
+        self.hparams = hparams
+        self.layers = nn.ModuleList(
+            [
+                EncoderLayer(
+                    self.hparams.d_model,
+                    self.hparams.n_head,
+                    self.hparams.dim_feedforward,
+                    self.hparams.dropout,
+                    self._get_activation(),
+                    self._get_norm(),
+                )
+                for _ in range(hparams.num_layers)
+            ]
+        )
+
+    def forward(self, src: torch.Tensor, src_mask: torch.Tensor | None = None) -> torch.Tensor:
+        for layer in self.layers:
+            src = layer(src, src_mask)
+        return src
+
+    def _get_norm(self) -> nn.Module:
+        norm_dict = {
+            'LayerNorm': nn.LayerNorm,
+            'AdaptiveLayerNorm': AdaptiveLayerNorm,
+        }
+        return norm_dict[self.hparams.norm]
+
+    def _get_activation(self) -> nn.Module:
+        activation_dict = {
+            'relu': nn.ReLU,
+            'gelu': nn.GELU,
+        }
+        return activation_dict[self.hparams.activation]
