@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from .modules import AdaptiveLayerNorm, PositionalEncoding
+from .modules import Encoder, PositionalEncoding
 
 
 class ValleNAR(nn.Module):
@@ -35,19 +35,7 @@ class ValleNAR(nn.Module):
         )
 
         # Decoder
-        self.decoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hparams.d_model,
-                nhead=hparams.n_head,
-                dim_feedforward=hparams.dim_feedforward * 4,
-                dropout=hparams.dropout,
-                activation=hparams.activation,
-                batch_first=True,
-                norm_first=True,
-            ),
-            num_layers=hparams.num_layers,
-            norm=AdaptiveLayerNorm(d_model=hparams.d_model, norm=nn.LayerNorm(hparams.d_model)),
-        )
+        self.decoder = Encoder(hparams)
 
         # Project to output
         self.proj = nn.Linear(hparams.d_model, hparams.num_audio_tokens + 1, bias=False)
