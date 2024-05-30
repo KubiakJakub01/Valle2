@@ -78,7 +78,7 @@ class ValleNAR(nn.Module):
         xy = torch.cat([x, y_emb], dim=1)
 
         # Forward pass
-        z = self.decoder((xy, self.stage_embs[layer - 1].weight))
+        z = self.decoder(xy, embedding=self.stage_embs[layer - 1].weight)
         z = z[:, max(x_lens) + prefix_len]
 
         # Project to output

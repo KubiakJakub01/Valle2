@@ -53,10 +53,10 @@ class PositionalEncoding(nn.Module):
 class AdaptiveLayerNorm(nn.Module):
     """Adaptive Layer Normalization"""
 
-    def __init__(self, d_model, norm) -> None:
+    def __init__(self, d_model) -> None:
         super().__init__()
         self.project_layer = nn.Linear(d_model, 2 * d_model)
-        self.norm = norm
+        self.norm = nn.LayerNorm(d_model)
         self.d_model = d_model
         self.eps = self.norm.eps
 
@@ -94,23 +94,20 @@ class FeedForward(nn.Module):
 class EncoderLayer(nn.Module):
     """Encoder Layer"""
 
-    def __init__(
-        self,
-        d_model: int,
-        nhead: int,
-        dim_feedforward: int,
-        dropout: float,
-        activation: nn.Module,
-        norm: nn.Module,
-    ) -> None:
+    def __init__(self, hparams: ValleHparams) -> None:
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.ffn = FeedForward(d_model, dim_feedforward, dropout=dropout)
-        self.norm1 = norm(d_model)
-        self.norm2 = norm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.activation = activation
+        self.hparams = hparams
+        self.self_attn = nn.MultiheadAttention(
+            self.hparams.d_model, self.hparams.n_head, dropout=self.hparams.dropout
+        )
+        self.ffn = FeedForward(
+            self.hparams.d_model, self.hparams.dim_feedforward, dropout=self.hparams.dropout
+        )
+        self.norm1 = self._get_norm()(self.hparams.d_model)
+        self.norm2 = self._get_norm()(self.hparams.d_model)
+        self.dropout1 = nn.Dropout(self.hparams.dropout)
+        self.dropout2 = nn.Dropout(self.hparams.dropout)
+        self.activation = self._get_activation()()
 
     def forward(
         self,
@@ -131,37 +128,6 @@ class EncoderLayer(nn.Module):
         src = self.norm2(src)
         return src
 
-
-class Encoder(nn.Module):
-    """Transformer Encoder"""
-
-    def __init__(self, hparams: ValleHparams) -> None:
-        super().__init__()
-        self.hparams = hparams
-        self.layers = nn.ModuleList(
-            [
-                EncoderLayer(
-                    self.hparams.d_model,
-                    self.hparams.n_head,
-                    self.hparams.dim_feedforward,
-                    self.hparams.dropout,
-                    self._get_activation(),
-                    self._get_norm(),
-                )
-                for _ in range(hparams.num_layers)
-            ]
-        )
-
-    def forward(
-        self,
-        src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        embedding: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        for layer in self.layers:
-            src = layer(src, src_mask, embedding)
-        return src
-
     def _get_norm(self):
         norm_dict = {
             'LayerNorm': nn.LayerNorm,
@@ -175,3 +141,23 @@ class Encoder(nn.Module):
             'gelu': nn.GELU,
         }
         return activation_dict[self.hparams.activation]
+
+
+class Encoder(nn.Module):
+    """Transformer Encoder"""
+
+    def __init__(self, hparams: ValleHparams) -> None:
+        super().__init__()
+        self.hparams = hparams
+        self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(hparams.num_layers)])
+
+    def forward(
+        self,
+        src: torch.Tensor,
+        *,
+        src_mask: torch.Tensor | None = None,
+        embedding: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        for layer in self.layers:
+            src = layer(src, src_mask, embedding)
+        return src
