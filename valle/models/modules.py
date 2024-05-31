@@ -7,6 +7,35 @@ from einops import rearrange
 from ..hparams import ValleHparams
 
 
+class TokenEmbedding(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        dim_model: int,
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+
+        self.vocab_size = vocab_size
+        self.dim_model = dim_model
+
+        self.dropout = torch.nn.Dropout(p=dropout)
+        self.word_embeddings = nn.Embedding(self.vocab_size, self.dim_model)
+
+    @property
+    def weight(self) -> torch.Tensor:
+        return self.word_embeddings.weight
+
+    def embedding(self, index: int) -> torch.Tensor:
+        return self.word_embeddings.weight[index : index + 1]
+
+    def forward(self, x: torch.Tensor):
+        X = self.word_embeddings(x)
+        X = self.dropout(X)
+
+        return X
+
+
 class PositionalEncoding(nn.Module):
     r"""Inject some information about the relative or \
             absolute position of the tokens in the sequence.
@@ -60,16 +89,7 @@ class AdaptiveLayerNorm(nn.Module):
         self.d_model = d_model
         self.eps = self.norm.eps
 
-    def forward(self, x: torch.Tensor, embedding: torch.Tensor | None = None) -> torch.Tensor:
-        if isinstance(x, tuple):
-            x, embedding = x
-            weight, bias = torch.split(
-                self.project_layer(embedding),
-                split_size_or_sections=self.d_model,
-                dim=-1,
-            )
-            return (weight * self.norm(x) + bias, embedding)
-
+    def forward(self, x: torch.Tensor, embedding: torch.Tensor) -> torch.Tensor:
         weight, bias = torch.split(
             self.project_layer(embedding),
             split_size_or_sections=self.d_model,
@@ -115,17 +135,14 @@ class EncoderLayer(nn.Module):
         src_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
         src2 = self.self_attn(src, src, src, attn_mask=src_mask, need_weights=False)[0]
         src = src + self.dropout1(src2)
-        if embedding is not None:
-            src = (src, embedding)
-        src = self.norm1(src)
+        src = self.norm1(src, **norm_opt)
 
         src2 = self.ffn(src)
         src = src + self.dropout2(src2)
-        if embedding is not None:
-            src = (src, embedding)
-        src = self.norm2(src)
+        src = self.norm2(src, **norm_opt)
         return src
 
     def _get_norm(self):
