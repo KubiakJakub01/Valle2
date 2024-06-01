@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from .modules import AdaptiveLayerNorm, PositionalEncoding
+from .modules import Encoder, PositionalEncoding, TokenEmbedding
 
 
 class ValleNAR(nn.Module):
@@ -18,10 +18,10 @@ class ValleNAR(nn.Module):
         self.bos_token = hparams.num_audio_tokens + 1
 
         # Embeddings
-        self.tokens_emb = nn.Embedding(hparams.vocab_size, hparams.d_model)
+        self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
         self.audio_embs = nn.ModuleList(
             [
-                nn.Embedding(hparams.num_audio_tokens, hparams.d_model)
+                TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
                 for _ in range(hparams.num_quantizers)
             ]
         )
@@ -29,25 +29,13 @@ class ValleNAR(nn.Module):
         self.audio_position_emb = PositionalEncoding(hparams.d_model)
         self.stage_embs = nn.ModuleList(
             [
-                nn.Embedding(hparams.num_audio_tokens, hparams.d_model)
+                TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
                 for _ in range(hparams.num_quantizers - 1)
             ]
         )
 
         # Decoder
-        self.decoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hparams.d_model,
-                nhead=hparams.n_head,
-                dim_feedforward=hparams.dim_feedforward * 4,
-                dropout=hparams.dropout,
-                activation=hparams.activation,
-                batch_first=True,
-                norm_first=True,
-            ),
-            num_layers=hparams.num_layers,
-            norm=AdaptiveLayerNorm(d_model=hparams.d_model, norm=nn.LayerNorm(hparams.d_model)),
-        )
+        self.decoder = Encoder(hparams)
 
         # Project to output
         self.proj = nn.Linear(hparams.d_model, hparams.num_audio_tokens + 1, bias=False)
@@ -90,7 +78,7 @@ class ValleNAR(nn.Module):
         xy = torch.cat([x, y_emb], dim=1)
 
         # Forward pass
-        z = self.decoder((xy, self.stage_embs[layer - 1].weight))
+        z = self.decoder(xy, embedding=self.stage_embs[layer - 1].weight)
         z = z[:, max(x_lens) + prefix_len]
 
         # Project to output

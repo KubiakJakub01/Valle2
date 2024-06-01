@@ -5,7 +5,7 @@ from einops import rearrange
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from .modules import PositionalEncoding
+from .modules import PositionalEncoding, TokenEmbedding
 
 
 class ValleAR(nn.Module):
@@ -17,8 +17,8 @@ class ValleAR(nn.Module):
         self.bos_token = hparams.num_audio_tokens + 1
 
         # Embeddings
-        self.tokens_emb = nn.Embedding(hparams.vocab_size, hparams.d_model)
-        self.audio_emb = nn.Embedding(hparams.num_audio_tokens + 2, hparams.d_model)
+        self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
+        self.audio_emb = TokenEmbedding(hparams.num_audio_tokens + 2, hparams.d_model)
         self.tokens_position_emb = PositionalEncoding(hparams.d_model)
         self.audio_position_emb = PositionalEncoding(hparams.d_model)
 

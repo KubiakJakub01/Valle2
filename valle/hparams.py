@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
@@ -18,8 +19,13 @@ class ValleHparams:
     n_head: int = field(default=4, metadata={'help': 'Number of heads'})
     dim_feedforward: int = field(default=1024, metadata={'help': 'Feedforward dimension'})
     dropout: float = field(default=0.1, metadata={'help': 'Dropout rate'})
-    activation: str = field(default='relu', metadata={'help': 'Activation function'})
+    activation: Literal['relu', 'gelu'] = field(
+        default='relu', metadata={'help': 'Activation function'}
+    )
     num_layers: int = field(default=6, metadata={'help': 'Number of layers'})
+    norm: Literal['AdaptiveLayerNorm', 'LayerNorm'] = field(
+        default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
+    )
 
     @property
     def quantization_factor(self):
