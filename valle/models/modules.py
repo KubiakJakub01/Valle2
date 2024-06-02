@@ -311,7 +311,29 @@ class Encoder(nn.Module):
         kv_cache: torch.Tensor | None = None,
         use_cache: bool = False,
         return_attn_weights: bool = False,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, tuple, list]:
+        """Transformer Encoder Forward Pass
+
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
+                Defaults to None.
+            attn_mask: Attention mask tensor of shape ``(seq_len, seq_len)``. \
+                Defaults to None.
+            embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
+                Defaults to None.
+            kv_cache: Key-Value cache tensor of shape ``(batch_size, seq_len, d_model)``. \
+                Defaults to None.
+            use_cache: Whether to use key-value cache. Defaults to False.
+            return_attn_weights: Whether to return attention weights. Defaults to False.
+
+        Returns:
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            new_kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
+            attn_weights_list: List of attention tensors of shape \
+                ``(batch_size, n_heads, seq_len, seq_len)``
+        """
         new_kv: tuple = ()
         attn_weights_list = []
         if use_cache and kv_cache is not None:
