@@ -26,7 +26,7 @@ class ValleAR(nn.Module):
         self.decoder = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
                 d_model=hparams.d_model,
-                nhead=hparams.n_head,
+                nhead=hparams.n_heads,
                 dim_feedforward=hparams.dim_feedforward,
                 dropout=hparams.dropout,
                 activation=hparams.activation,
