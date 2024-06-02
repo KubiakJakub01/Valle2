@@ -74,7 +74,7 @@ def test_merge_masks(
     attention = MultiHeadAttention(d_model=d_model, n_heads=n_heads)
     attn_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1)
     mask = attention.merge_masks(batch_size, attn_mask, padding_mask)
-    assert mask is not None
+    assert isinstance(mask, torch.Tensor)
     assert mask.shape == (batch_size, n_heads, seq_len, seq_len)
     for i, expected_output in enumerate(expected_outputs):
         assert (mask[i] == 0.0).sum().item() == expected_output
