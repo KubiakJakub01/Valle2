@@ -238,19 +238,34 @@ class EncoderLayer(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
+        x: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
+        kv_cache: torch.Tensor | None = None,
+        use_cache: bool = False,
     ) -> torch.Tensor:
+        """Encoder Layer Forward Pass
+        
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
+                Defaults to None.
+            attn_mask: Attention mask tensor of shape ``(seq_len, seq_len)``. \
+                Defaults to None.
+            embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
+                Defaults to None.
+            kv_cache: Key-Value cache tensor of shape ``(seq_len, batch_size, d_model)``. \
+                Defaults to None.
+            use_cache: Whether to use key-value cache. Defaults to False."""
         norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask, need_weights=False)[0]
-        src = src + self.dropout1(src2)
-        src = self.norm1(src, **norm_opt)
+        x_attn, attn_weights, kv_cache = self.self_attn(
+            self.norm1(x, **norm_opt), attn_mask, padding_mask, kv_cache, use_cache
+        )
+        x = x + self.dropout1(x_attn)
+        x = x + self.dropout2(self.ffn(self.norm2(x, **norm_opt)))
 
-        src2 = self.ffn(src)
-        src = src + self.dropout2(src2)
-        src = self.norm2(src, **norm_opt)
-        return src
+        return x, attn_weights, kv_cache
 
     def _get_norm(self):
         norm_dict = {
