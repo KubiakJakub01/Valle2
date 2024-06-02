@@ -116,6 +116,7 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        *,
         attn_mask: torch.Tensor | None = None,
         padding_mask: torch.Tensor | None = None,
         kv_cache: torch.Tensor | None = None,
@@ -134,9 +135,10 @@ class MultiHeadAttention(nn.Module):
             use_cache: Whether to use key-value cache. Defaults to False.
 
         Returns:
-            x: Output tensor of shape (batch_size, seq_len, d_model)
-            attn: Attention tensor of shape (batch_size, n_heads, seq_len, seq_len)
-            kv: Key-Value cache tensor of shape (seq_len, batch_size, d_model)
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            attn: Attention tensor of shape ``(batch_size, n_heads, seq_len, seq_len)``
+            kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
         """
         batch_size = x.shape[0]
 
@@ -155,7 +157,7 @@ class MultiHeadAttention(nn.Module):
             kv = (k, v)
 
         # scaled dot-product attention
-        attn = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(self.head_dim)
+        attn = torch.matmul(q, rearrange(k, 'b h t d -> b h d t')) / math.sqrt(self.head_dim)
 
         # apply attention mask
         if attn_mask is not None:
@@ -239,6 +241,7 @@ class EncoderLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        *,
         padding_mask: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
@@ -246,7 +249,7 @@ class EncoderLayer(nn.Module):
         use_cache: bool = False,
     ) -> torch.Tensor:
         """Encoder Layer Forward Pass
-        
+
         Args:
             x: Input tensor of shape ``(batch_size, seq_len, d_model)``
             padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
@@ -255,9 +258,17 @@ class EncoderLayer(nn.Module):
                 Defaults to None.
             embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
                 Defaults to None.
-            kv_cache: Key-Value cache tensor of shape ``(seq_len, batch_size, d_model)``. \
+            kv_cache: Key-Value cache tensor of shape ``(batch_size, seq_len, d_model)``. \
                 Defaults to None.
-            use_cache: Whether to use key-value cache. Defaults to False."""
+            use_cache: Whether to use key-value cache. Defaults to False.
+
+        Returns:
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            attn_weights: Attention tensor of shape \
+                ``(batch_size, n_heads, seq_len, seq_len)``
+            kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
+        """
         norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
         x_attn, attn_weights, kv_cache = self.self_attn(
             self.norm1(x, **norm_opt), attn_mask, padding_mask, kv_cache, use_cache
@@ -288,15 +299,36 @@ class Encoder(nn.Module):
     def __init__(self, hparams: ValleHparams) -> None:
         super().__init__()
         self.hparams = hparams
-        self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(hparams.num_layers)])
+        self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(self.hparams.num_layers)])
 
     def forward(
         self,
-        src: torch.Tensor,
+        x: torch.Tensor,
         *,
-        src_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
+        kv_cache: torch.Tensor | None = None,
+        use_cache: bool = False,
+        return_attn_weights: bool = False,
     ) -> torch.Tensor:
-        for layer in self.layers:
-            src = layer(src, src_mask, embedding)
-        return src
+        new_kv: tuple = ()
+        attn_weights_list = []
+        if use_cache and kv_cache is not None:
+            x = x[:, -1:]
+            attn_mask = None
+        kv_cache = tuple([None] * self.hparams.num_layers)
+        for layer, past_kv in zip(self.layers, kv_cache, strict=False):
+            x, attn_weights, kv_cache = layer(
+                x,
+                padding_mask=padding_mask,
+                attn_mask=attn_mask,
+                embedding=embedding,
+                kv_cache=past_kv,
+                use_cache=use_cache,
+            )
+            if use_cache:
+                new_kv = new_kv + (kv_cache,)
+            if return_attn_weights:
+                attn_weights_list.append(attn_weights.cpu())
+        return x, new_kv, attn_weights_list
