@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from .modules import Encoder, PositionalEncoding, TokenEmbedding
+from .modules import PositionalEncoding, TokenEmbedding, Transformer
+from .utils import create_pad_mask
 
 
 class ValleNAR(nn.Module):
@@ -35,7 +36,7 @@ class ValleNAR(nn.Module):
         )
 
         # Decoder
-        self.decoder = Encoder(hparams)
+        self.transformer = Transformer(hparams)
 
         # Project to output
         self.proj = nn.Linear(hparams.d_model, hparams.num_audio_tokens + 1, bias=False)
@@ -50,7 +51,7 @@ class ValleNAR(nn.Module):
         """Forward pass of the model.
 
         Args:
-            tokens_list: List of token sequences (token_len).
+            tokens_list: List of token sequences (tokens_len).
             codes_list: List of audio codes (codes_len, quantization_layers).
 
         Returns:
@@ -59,27 +60,37 @@ class ValleNAR(nn.Module):
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
         # Prepare tokens
-        x_lens = list(map(len, tokens_list))
-        x = pad_sequence(tokens_list, batch_first=True)
-        x = self.tokens_emb(x)  # (b t c)
-        x = self.tokens_position_emb(x)
+        tokens_lens = list(map(len, tokens_list))
+        tokens_len = max(tokens_lens)
+        tokens = pad_sequence(tokens_list, batch_first=True)
+        tokens = self.tokens_emb(tokens)  # (b t c)
+        tokens = self.tokens_position_emb(tokens)
 
         # Prepare prompt and target audio
-        # Draw a random quantization layer
+        codes_lens = list(map(len, codes_list))
         layer = random.randint(1, self.hparams.num_quantizers - 1)
         codes = pad_sequence(codes_list, batch_first=True)
-        y_emb, prefix_len = self._prepare_audio_codes(codes, layer)
-        y_emb = self.audio_position_emb(y_emb)
+        codes, prefix_len = self._prepare_audio_codes(codes, layer)
+        codes = self.audio_position_emb(codes)
 
         # Prepare target audio
         target = codes[:, prefix_len:, layer]
 
+        # Prepare mask
+        codes_pad_mask = F.pad(
+            create_pad_mask(codes_lens, self.device),
+            (tokens_len, 0),
+            value=False,
+        )  # [tokens_len, codes_len]
+
         # Concatenate tokens and codes
-        xy = torch.cat([x, y_emb], dim=1)
+        xy = torch.cat([tokens, codes], dim=1)
 
         # Forward pass
-        z = self.decoder(xy, embedding=self.stage_embs[layer - 1].weight)
-        z = z[:, max(x_lens) + prefix_len]
+        z = self.transformer(
+            xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
+        )
+        z = z[:, max(tokens_lens) + prefix_len]
 
         # Project to output
         logits = self.proj(z)

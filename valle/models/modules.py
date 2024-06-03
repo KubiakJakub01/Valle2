@@ -162,7 +162,7 @@ class MultiHeadAttention(nn.Module):
         # apply attention mask
         if attn_mask is not None:
             merged_mask = self.merge_masks(batch_size, attn_mask, padding_mask)
-            attn = attn.masked_fill(merged_mask == 0, float('-inf'))
+            attn = attn.masked_fill_(merged_mask, float('-inf'))
 
         # softmax and weighted sum
         attn = torch.softmax(attn, dim=-1)
@@ -271,7 +271,11 @@ class EncoderLayer(nn.Module):
         """
         norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
         x_attn, attn_weights, kv_cache = self.self_attn(
-            self.norm1(x, **norm_opt), attn_mask, padding_mask, kv_cache, use_cache
+            self.norm1(x, **norm_opt),
+            attn_mask=attn_mask,
+            padding_mask=padding_mask,
+            kv_cache=kv_cache,
+            use_cache=use_cache,
         )
         x = x + self.dropout1(x_attn)
         x = x + self.dropout2(self.ffn(self.norm2(x, **norm_opt)))
@@ -293,7 +297,7 @@ class EncoderLayer(nn.Module):
         return activation_dict[self.hparams.activation]
 
 
-class Encoder(nn.Module):
+class Transformer(nn.Module):
     """Transformer Encoder"""
 
     def __init__(self, hparams: ValleHparams) -> None:

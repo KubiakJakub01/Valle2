@@ -5,7 +5,7 @@ from einops import rearrange
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
-from .modules import PositionalEncoding, TokenEmbedding
+from .modules import PositionalEncoding, TokenEmbedding, Transformer
 
 
 class ValleAR(nn.Module):
@@ -13,31 +13,20 @@ class ValleAR(nn.Module):
         super().__init__()
         self.hparams = hparams
 
-        self.eos_token = hparams.num_audio_tokens
-        self.bos_token = hparams.num_audio_tokens + 1
+        self.eos_token = self.hparams.num_audio_tokens
+        self.bos_token = self.hparams.num_audio_tokens + 1
 
         # Embeddings
-        self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
-        self.audio_emb = TokenEmbedding(hparams.num_audio_tokens + 2, hparams.d_model)
-        self.tokens_position_emb = PositionalEncoding(hparams.d_model)
-        self.audio_position_emb = PositionalEncoding(hparams.d_model)
+        self.tokens_emb = TokenEmbedding(self.hparams.vocab_size, self.hparams.d_model)
+        self.audio_emb = TokenEmbedding(self.hparams.num_audio_tokens + 2, self.hparams.d_model)
+        self.tokens_position_emb = PositionalEncoding(self.hparams.d_model)
+        self.audio_position_emb = PositionalEncoding(self.hparams.d_model)
 
-        # Decoder
-        self.decoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hparams.d_model,
-                nhead=hparams.n_heads,
-                dim_feedforward=hparams.dim_feedforward,
-                dropout=hparams.dropout,
-                activation=hparams.activation,
-                batch_first=True,
-            ),
-            num_layers=hparams.num_layers,
-            norm=nn.LayerNorm(hparams.d_model),
-        )
+        # Transformer
+        self.transformer = Transformer(self.hparams)
 
         # Project to output
-        self.proj = nn.Linear(hparams.d_model, hparams.num_audio_tokens + 1, bias=False)
+        self.proj = nn.Linear(self.hparams.d_model, self.hparams.num_audio_tokens + 1, bias=False)
 
     @property
     def device(self):
@@ -94,7 +83,7 @@ class ValleAR(nn.Module):
 
         # Decoder
         xy = torch.cat((x, y), dim=1)
-        z = self.decoder(xy, mask=mask)
+        z, *_ = self.transformer(xy, attn_mask=mask)
         z = z[:, x_len:]
 
         # Project to output
