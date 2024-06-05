@@ -162,7 +162,8 @@ class MultiHeadAttention(nn.Module):
         # apply attention mask
         if attn_mask is not None:
             merged_mask = self.merge_masks(batch_size, attn_mask, padding_mask)
-            attn = attn.masked_fill_(merged_mask, float('-inf'))
+            assert merged_mask is not None, 'merged_mask should not be None'
+            attn = attn.masked_fill_(merged_mask.bool(), float('-inf'))
 
         # softmax and weighted sum
         attn = torch.softmax(attn, dim=-1)
