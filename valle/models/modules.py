@@ -121,7 +121,7 @@ class MultiHeadAttention(nn.Module):
         padding_mask: torch.Tensor | None = None,
         kv_cache: torch.Tensor | None = None,
         use_cache: bool = False,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
         r"""Multi-Head Attention Forward Pass with kv-cache support
 
         Args:
@@ -248,7 +248,7 @@ class EncoderLayer(nn.Module):
         embedding: torch.Tensor | None = None,
         kv_cache: torch.Tensor | None = None,
         use_cache: bool = False,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
         """Encoder Layer Forward Pass
 
         Args:
@@ -271,7 +271,7 @@ class EncoderLayer(nn.Module):
                 ``(batch_size, n_heads, seq_len, d_model)``
         """
         norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
-        x_attn, attn_weights, kv_cache = self.self_attn(
+        x_attn, attn_weights, next_kv_cache = self.self_attn(
             self.norm1(x, **norm_opt),
             attn_mask=attn_mask,
             padding_mask=padding_mask,
@@ -281,7 +281,7 @@ class EncoderLayer(nn.Module):
         x = x + self.dropout1(x_attn)
         x = x + self.dropout2(self.ffn(self.norm2(x, **norm_opt)))
 
-        return x, attn_weights, kv_cache
+        return x, attn_weights, next_kv_cache
 
     def _get_norm(self):
         norm_dict = {
@@ -313,7 +313,7 @@ class Transformer(nn.Module):
         padding_mask: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
-        kv_cache: torch.Tensor | None = None,
+        kv_cache: tuple | None = None,
         use_cache: bool = False,
         return_attn_weights: bool = False,
     ) -> tuple[torch.Tensor, tuple, list]:
@@ -344,9 +344,10 @@ class Transformer(nn.Module):
         if use_cache and kv_cache is not None:
             x = x[:, -1:]
             attn_mask = None
-        kv_cache = tuple([None] * self.hparams.num_layers)
+        else:
+            kv_cache = tuple([None] * self.hparams.num_layers)
         for layer, past_kv in zip(self.layers, kv_cache, strict=False):
-            x, attn_weights, kv_cache = layer(
+            x, attn_weights, next_kv_cache = layer(
                 x,
                 padding_mask=padding_mask,
                 attn_mask=attn_mask,
@@ -355,7 +356,7 @@ class Transformer(nn.Module):
                 use_cache=use_cache,
             )
             if use_cache:
-                new_kv = new_kv + (kv_cache,)
+                new_kv = new_kv + (next_kv_cache,)
             if return_attn_weights:
                 attn_weights_list.append(attn_weights.cpu())
         return x, new_kv, attn_weights_list
