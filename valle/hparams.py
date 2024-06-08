@@ -27,6 +27,9 @@ class ValleHparams:
         default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
     )
 
+    # Generation
+    max_audio_len: int = field(default=1024, metadata={'help': 'Max length for generation'})
+
     @property
     def quantization_factor(self):
         return self.sampling_rate // self.polling_factor
