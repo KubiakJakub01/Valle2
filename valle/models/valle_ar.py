@@ -104,7 +104,10 @@ class ValleAR(nn.Module):
 
         Args:
             tokens: Tokens tensor (tokens_len)
-            codes: Audio codes tensor (codes_len, quantization_layers)
+            codes: Audio codes tensor (quantization_layers, codes_len)
+
+        Returns:
+            Generated audio codes tensor (1, codes_len)
         """
         x = self.tokens_emb(tokens)
 

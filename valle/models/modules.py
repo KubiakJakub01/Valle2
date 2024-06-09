@@ -327,8 +327,8 @@ class Transformer(nn.Module):
                 Defaults to None.
             embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
                 Defaults to None.
-            kv_cache: Key-Value cache tensor of shape ``(batch_size, seq_len, d_model)``. \
-                Defaults to None.
+            kv_cache: Key-Value cache tuple of tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``. Defaults to None.
             use_cache: Whether to use key-value cache. Defaults to False.
             return_attn_weights: Whether to return attention weights. Defaults to False.
 
