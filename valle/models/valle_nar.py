@@ -3,6 +3,7 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
@@ -99,6 +100,29 @@ class ValleNAR(nn.Module):
         loss = F.cross_entropy(logits, target)
 
         return loss
+
+    @torch.inference_mode()
+    def generate(
+        self,
+        tokens: torch.Tensor,
+        codes: torch.Tensor,
+    ) -> torch.Tensor:
+        """Generate audio from tokens.
+
+        Args:
+            tokens: Token sequence (tokens_len).
+            codes: Audio codes (codes_len, quantization_layers).
+
+        Returns:
+            audio: Generated audio (codes_len).
+        """
+        # Prepare tokens
+        tokens = rearrange(tokens, 't -> 1 t')
+        tokens = self.tokens_emb(tokens)
+        tokens = self.tokens_position_emb(tokens)
+
+        # Prepare audio
+        codes, _ = self._prepare_audio_codes(codes, self.hparams.num_quantizers)
 
     def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
         """Prepare prompt audio.
