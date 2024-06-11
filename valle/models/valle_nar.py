@@ -124,6 +124,29 @@ class ValleNAR(nn.Module):
         # Prepare audio
         codes, _ = self._prepare_audio_codes(codes, self.hparams.num_quantizers)
 
+        # Prepare mask
+        tokens_len = tokens.shape[1]
+        codes_len = codes.shape[1]
+        codes_pad_mask = F.pad(
+            create_pad_mask([codes_len], self.device),
+            (tokens_len, 0),
+            value=False,
+        )
+
+        # Concatenate tokens and codes
+        xy = torch.cat([tokens, codes], dim=1)
+
+        # Forward pass
+        z = self.transformer(xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[-1].weight)
+
+        # Project to output
+        logits = self.proj(z)
+
+        # Generate audio
+        audio = torch.argmax(logits, dim=-1)
+
+        return audio
+
     def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
         """Prepare prompt audio.
 
