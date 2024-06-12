@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 
 import coloredlogs
+import torchaudio
 from torch import Tensor
 
 # Set up logging
@@ -51,3 +52,10 @@ def tree_map(fn: Callable, x):
 
 def to_device(x, device):
     return tree_map(lambda t: t.to(device), x)
+
+
+def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16000) -> Tensor:
+    """Normalize audio to target sample rate."""
+    if orginal_sr != target_sr:
+        audio = torchaudio.transforms.Resample(orig_freq=orginal_sr, new_freq=target_sr)(audio)
+    return audio
