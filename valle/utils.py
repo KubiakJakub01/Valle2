@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from pathlib import Path
 
 import coloredlogs
 import torchaudio
@@ -54,7 +55,7 @@ def to_device(x, device):
     return tree_map(lambda t: t.to(device), x)
 
 
-def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16000) -> Tensor:
+def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16_000) -> Tensor:
     """Normalize audio to target sample rate."""
     # Normalize to mono
     if audio.shape[0] > 1:
@@ -64,4 +65,11 @@ def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16000) -> T
         audio = torchaudio.transforms.Resample(orig_freq=orginal_sr, new_freq=target_sr)(audio)
     # Normalize to [-1, 1]
     audio = audio / audio.abs().max()
+    return audio
+
+
+def load_audio(path: Path, target_sr: int = 16_000) -> Tensor:
+    """Load audio from file."""
+    audio, sr = torchaudio.load(path)
+    audio = normalize_audio(audio, sr, target_sr)
     return audio
