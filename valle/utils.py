@@ -3,6 +3,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import coloredlogs
+import sox
+import torch
 import torchaudio
 from torch import Tensor
 
@@ -73,3 +75,13 @@ def load_audio(path: Path, target_sr: int = 16_000) -> Tensor:
     audio, sr = torchaudio.load(path)
     audio = normalize_audio(audio, sr, target_sr)
     return audio
+
+
+def normalize_loudness(
+    audio: Tensor, sample_rate: int = 16_000, target_loudness: float = -20.0
+) -> Tensor:
+    """Normalize loudness of audio."""
+    transformer = sox.Transformer()
+    transformer.norm(target_loudness)
+    audio = transformer.build_array(input_array=audio.numpy(), sample_rate_in=sample_rate)
+    return torch.tensor(audio)
