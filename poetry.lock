@@ -1337,6 +1337,24 @@ files = [
 ]
 
 [[package]]
+name = "sox"
+version = "1.5.0"
+description = "Python wrapper around SoX."
+optional = false
+python-versions = "*"
+files = [
+    {file = "sox-1.5.0.tar.gz", hash = "sha256:12c7be5bb1f548d891fe11e82c08cf5f1a1d74e225298f60082e5aeb2469ada0"},
+]
+
+[package.dependencies]
+numpy = ">=1.9.0"
+typing-extensions = ">=3.7.4.2"
+
+[package.extras]
+docs = ["numpydoc", "sphinx (==1.2.3)", "sphinx_rtd_theme", "sphinxcontrib-napoleon"]
+tests = ["pytest", "pytest-cov", "pytest-pep8", "soundfile (>=0.11.0)"]
+
+[[package]]
 name = "sympy"
 version = "1.12"
 description = "Computer algebra system (CAS) in Python"
@@ -1504,4 +1522,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "f309f738ff0849a6ccb313db53656646dd6f988726f8e2cbbf7269d1e0124ce7"
+content-hash = "f53b52c29e3d0e0808f20498e50f07a8774a65be5ad0a442e7c03cd033ff194b"
