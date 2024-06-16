@@ -2,7 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
-from einops import rearrange
+from einops import rearrange, repeat
 
 from ..hparams import ValleHparams
 
@@ -98,17 +98,129 @@ class AdaptiveLayerNorm(nn.Module):
         return weight * self.norm(x) + bias
 
 
+class MultiHeadAttention(nn.Module):
+    """Multi-Head Attention"""
+
+    def __init__(self, d_model: int, n_heads: int) -> None:
+        super().__init__()
+
+        assert d_model % n_heads == 0, 'd_model should be divisible by n_heads'
+
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.head_dim = d_model // n_heads
+
+        self.qkv = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.out = nn.Linear(d_model, d_model)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        *,
+        attn_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
+        kv_cache: torch.Tensor | None = None,
+        use_cache: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
+        r"""Multi-Head Attention Forward Pass with kv-cache support
+
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            attn_mask: Attention mask tensor of shape ``(seq_len, seq_len)``. \
+                Defaults to None.
+            padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
+                Defaults to None.
+            kv_cache: Key-Value cache tensor of shape ``(seq_len, batch_size, d_model)``. \
+                Defaults to None.
+            use_cache: Whether to use key-value cache. Defaults to False.
+
+        Returns:
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            attn: Attention tensor of shape ``(batch_size, n_heads, seq_len, seq_len)``
+            kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
+        """
+        batch_size = x.shape[0]
+
+        # q, k, v: (batch_size, n_heads, seq_len, head_dim)
+        q, k, v = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.n_heads), (q, k, v))
+
+        # manage key-value cache
+        kv = None
+        if use_cache and kv_cache is not None:
+            past_k = kv_cache[0]
+            past_v = kv_cache[1]
+            k = torch.cat([past_k, k], dim=-2)
+            v = torch.cat([past_v, v], dim=-2)
+        if use_cache:
+            kv = (k, v)
+
+        # scaled dot-product attention
+        attn = torch.matmul(q, rearrange(k, 'b h t d -> b h d t')) / math.sqrt(self.head_dim)
+
+        # apply attention mask
+        if attn_mask is not None:
+            merged_mask = self.merge_masks(batch_size, attn_mask, padding_mask)
+            assert merged_mask is not None, 'merged_mask should not be None'
+            attn = attn.masked_fill_(merged_mask.bool(), float('-inf'))
+
+        # softmax and weighted sum
+        attn = torch.softmax(attn, dim=-1)
+        x = torch.matmul(attn, v)
+        x = rearrange(x, 'b h n d -> b n (h d)')
+        x = self.out(x)
+
+        return x, attn, kv
+
+    def merge_masks(
+        self, batch_size: int, attn_mask: torch.Tensor | None, key_padding_mask: torch.Tensor | None
+    ) -> torch.Tensor | None:
+        r"""
+        Merge attention and padding masks into a single mask
+
+        Args:
+            attn_mask: attention mask of shape ``(seq_len, seq_len)``
+            key_padding_mask: padding mask of shape ``(batch_size, seq_len)``
+            x: embeddings of shape ``(batch_size, seq_len, embed_dim)``
+
+        Returns:
+            merged_mask: merged mask of shape ``(batch_size, num_heads, seq_len, seq_len)`` or None
+        """
+        merged_mask: torch.Tensor | None = None
+
+        if attn_mask is not None:
+            # Always expands attn_mask to 4D
+            if attn_mask.dim() == 3:
+                attn_mask_expanded = rearrange(attn_mask, 'b t t -> b 1 t t')
+            else:  # attn_mask.dim() == 2:
+                attn_mask_expanded = repeat(
+                    attn_mask, 'h w -> b n h w', b=batch_size, n=self.n_heads
+                )
+
+            merged_mask = attn_mask_expanded
+
+            if key_padding_mask is not None:
+                key_padding_mask_expanded = repeat(
+                    key_padding_mask, 'b t -> b n h t', b=batch_size, n=self.n_heads, h=1
+                )
+                merged_mask = attn_mask_expanded + key_padding_mask_expanded
+
+        return merged_mask
+
+
 class FeedForward(nn.Module):
     """Feed Forward Neural Network"""
 
     def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1) -> None:
         super().__init__()
         self.linear_1 = nn.Linear(d_model, d_ff)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
         self.linear_2 = nn.Linear(d_ff, d_model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
+        return self.linear_2(self.dropout(self.activation(self.linear_1(x))))
 
 
 class EncoderLayer(nn.Module):
@@ -117,9 +229,7 @@ class EncoderLayer(nn.Module):
     def __init__(self, hparams: ValleHparams) -> None:
         super().__init__()
         self.hparams = hparams
-        self.self_attn = nn.MultiheadAttention(
-            self.hparams.d_model, self.hparams.n_head, dropout=self.hparams.dropout
-        )
+        self.self_attn = MultiHeadAttention(hparams.d_model, hparams.n_heads)
         self.ffn = FeedForward(
             self.hparams.d_model, self.hparams.dim_feedforward, dropout=self.hparams.dropout
         )
@@ -131,19 +241,47 @@ class EncoderLayer(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
+        x: torch.Tensor,
+        *,
+        padding_mask: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask, need_weights=False)[0]
-        src = src + self.dropout1(src2)
-        src = self.norm1(src, **norm_opt)
+        kv_cache: torch.Tensor | None = None,
+        use_cache: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
+        """Encoder Layer Forward Pass
 
-        src2 = self.ffn(src)
-        src = src + self.dropout2(src2)
-        src = self.norm2(src, **norm_opt)
-        return src
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
+                Defaults to None.
+            attn_mask: Attention mask tensor of shape ``(seq_len, seq_len)``. \
+                Defaults to None.
+            embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
+                Defaults to None.
+            kv_cache: Key-Value cache tensor of shape ``(batch_size, seq_len, d_model)``. \
+                Defaults to None.
+            use_cache: Whether to use key-value cache. Defaults to False.
+
+        Returns:
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            attn_weights: Attention tensor of shape \
+                ``(batch_size, n_heads, seq_len, seq_len)``
+            kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
+        """
+        norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
+        x_attn, attn_weights, next_kv_cache = self.self_attn(
+            self.norm1(x, **norm_opt),
+            attn_mask=attn_mask,
+            padding_mask=padding_mask,
+            kv_cache=kv_cache,
+            use_cache=use_cache,
+        )
+        x = x + self.dropout1(x_attn)
+        x = x + self.dropout2(self.ffn(self.norm2(x, **norm_opt)))
+
+        return x, attn_weights, next_kv_cache
 
     def _get_norm(self):
         norm_dict = {
@@ -160,21 +298,65 @@ class EncoderLayer(nn.Module):
         return activation_dict[self.hparams.activation]
 
 
-class Encoder(nn.Module):
+class Transformer(nn.Module):
     """Transformer Encoder"""
 
     def __init__(self, hparams: ValleHparams) -> None:
         super().__init__()
         self.hparams = hparams
-        self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(hparams.num_layers)])
+        self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(self.hparams.num_layers)])
 
     def forward(
         self,
-        src: torch.Tensor,
+        x: torch.Tensor,
         *,
-        src_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
         embedding: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        for layer in self.layers:
-            src = layer(src, src_mask, embedding)
-        return src
+        kv_cache: tuple | None = None,
+        use_cache: bool = False,
+        return_attn_weights: bool = False,
+    ) -> tuple[torch.Tensor, tuple, list]:
+        """Transformer Encoder Forward Pass
+
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            padding_mask: Padding mask tensor of shape ``(batch_size, seq_len)``. \
+                Defaults to None.
+            attn_mask: Attention mask tensor of shape ``(seq_len, seq_len)``. \
+                Defaults to None.
+            embedding: Embedding tensor of shape ``(batch_size, d_model)``. \
+                Defaults to None.
+            kv_cache: Key-Value cache tuple of tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``. Defaults to None.
+            use_cache: Whether to use key-value cache. Defaults to False.
+            return_attn_weights: Whether to return attention weights. Defaults to False.
+
+        Returns:
+            x: Output tensor of shape ``(batch_size, seq_len, d_model)``
+            new_kv: Tuple of key-value cache tensors of shape \
+                ``(batch_size, n_heads, seq_len, d_model)``
+            attn_weights_list: List of attention tensors of shape \
+                ``(batch_size, n_heads, seq_len, seq_len)``
+        """
+        new_kv: tuple = ()
+        attn_weights_list = []
+        if use_cache and kv_cache is not None:
+            x = x[:, -1:]
+            attn_mask = None
+        else:
+            kv_cache = tuple([None] * self.hparams.num_layers)
+        for layer, past_kv in zip(self.layers, kv_cache, strict=False):
+            x, attn_weights, next_kv_cache = layer(
+                x,
+                padding_mask=padding_mask,
+                attn_mask=attn_mask,
+                embedding=embedding,
+                kv_cache=past_kv,
+                use_cache=use_cache,
+            )
+            if use_cache:
+                new_kv = new_kv + (next_kv_cache,)
+            if return_attn_weights:
+                attn_weights_list.append(attn_weights.cpu())
+        return x, new_kv, attn_weights_list

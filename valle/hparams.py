@@ -16,7 +16,7 @@ class ValleHparams:
 
     # Model
     d_model: int = field(default=256, metadata={'help': 'Model dimension'})
-    n_head: int = field(default=4, metadata={'help': 'Number of heads'})
+    n_heads: int = field(default=4, metadata={'help': 'Number of heads'})
     dim_feedforward: int = field(default=1024, metadata={'help': 'Feedforward dimension'})
     dropout: float = field(default=0.1, metadata={'help': 'Dropout rate'})
     activation: Literal['relu', 'gelu'] = field(
@@ -26,6 +26,9 @@ class ValleHparams:
     norm: Literal['AdaptiveLayerNorm', 'LayerNorm'] = field(
         default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
     )
+
+    # Generation
+    max_audio_len: int = field(default=1024, metadata={'help': 'Max length for generation'})
 
     @property
     def quantization_factor(self):
