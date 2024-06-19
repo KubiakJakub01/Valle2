@@ -93,3 +93,9 @@ def convert_audio2mel(audio: Tensor, sample_rate: int = 16_000, n_mels: int = 80
         audio
     )
     return mel_spectrogram
+
+
+def convert_audio2mfcc(audio: Tensor, sample_rate: int = 16_000, n_mfcc: int = 13) -> Tensor:
+    """Convert audio to MFCC."""
+    mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=n_mfcc)(audio)
+    return mfcc
