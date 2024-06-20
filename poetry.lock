@@ -435,6 +435,25 @@ files = [
 ]
 
 [[package]]
+name = "encodec"
+version = "0.1.1"
+description = "High fidelity neural audio codec"
+optional = false
+python-versions = ">=3.8.0"
+files = [
+    {file = "encodec-0.1.1.tar.gz", hash = "sha256:36dde98ccfe6c51a15576476cadfcb3b35a63507b8b8555abd69889a6fba6772"},
+]
+
+[package.dependencies]
+einops = "*"
+numpy = "*"
+torch = "*"
+torchaudio = "*"
+
+[package.extras]
+dev = ["flake8", "mypy", "pdoc3"]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.2.1"
 description = "Backport of PEP 654 (exception groups)"
@@ -2160,4 +2179,4 @@ test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "6f08a7f1ec87e4f4981c539600d6e434d220872ffb16a41205574599852c7237"
+content-hash = "bc30644b119a7e991e0a200a12d297ef25541f0dcc9236b6c0d0fad90db29474"
