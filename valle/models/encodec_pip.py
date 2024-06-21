@@ -4,7 +4,14 @@ from encodec import EncodecModel
 
 
 class EncodecPip:
+    """Encodec model for audio coding and decoding.
+
+    Attributes:
+        model: Encodec model
+    """
+
     def __init__(self):
+        """Initialize Encodec model."""
         self.model = EncodecModel.encodec_model_24khz()
         self.model.set_target_bandwidth(6.0)
 
