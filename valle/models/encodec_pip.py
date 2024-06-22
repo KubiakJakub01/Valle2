@@ -42,3 +42,16 @@ class EncodecPip:
         """
         codes = rearrange(self.model.decode([(codes, None)]), '1 1 t -> t')
         return codes
+
+    def encode_decode(self, audio: torch.Tensor) -> torch.Tensor:
+        """Encode and decode audio.
+
+        Args:
+            audio: 1D audio tensor of shape [T]
+
+        Returns:
+            audio: 1D audio tensor of shape [T]
+        """
+        codes = self.encode(audio)
+        audio = self.decode(codes)
+        return audio
