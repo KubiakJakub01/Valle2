@@ -23,23 +23,27 @@ class EncodecPip:
             audio: 1D audio tensor of shape [T]
 
         Returns:
-            codes: Tensor of shape [B, n_q, T]
+            codes: Tensor of shape [n_q, T]
         """
         assert audio.dim() == 1, f'Expected 1D audio tensor, got {audio.dim()}D'
         audio = rearrange(audio, 't -> 1 1 t')
         encoded_frames = self.model.encode(audio)
-        codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)  # [B, n_q, T]
+        codes = rearrange(
+            torch.cat([encoded[0] for encoded in encoded_frames], dim=-1), '1 q t -> q t'
+        )
         return codes
 
     def decode(self, codes: torch.Tensor) -> torch.Tensor:
         """Decode codes into audio.
 
         Args:
-            codes: Tensor of shape [B, n_q, T]
+            codes: Tensor of shape [n_q, T]
 
         Returns:
             audio: 1D audio tensor of shape [T]
         """
+        assert codes.dim() == 2, f'Expected 2D codes tensor, got {codes.dim()}D'
+        codes = rearrange(codes, 'q t -> 1 q t')
         codes = rearrange(self.model.decode([(codes, None)]), '1 1 t -> t')
         return codes
 
