@@ -23,7 +23,7 @@ class EncodecPip:
             audio: 1D audio tensor of shape [T]
 
         Returns:
-            codes: Tensor of shape [n_q, T]
+            codes: Tensor of shape [N_Q, T]
         """
         assert audio.dim() == 1, f'Expected 1D audio tensor, got {audio.dim()}D'
         audio = rearrange(audio, 't -> 1 1 t')
@@ -33,11 +33,27 @@ class EncodecPip:
         )
         return codes
 
+    @torch.inference_mode()
+    def batch_encode(self, audios: torch.Tensor) -> torch.Tensor:
+        """Encode batch of audio into codes.
+
+        Args:
+            audios: 2D audio tensor of shape [B, T]
+
+        Returns:
+            codes: Tensor of shape [B, N_Q, T]
+        """
+        assert audios.dim() == 2, f'Expected 2D audio tensor, got {audios.dim()}D'
+        audios = rearrange(audios, 'b t -> b 1 t')
+        encoded_frames = self.model.encode(audios)
+        codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
+        return codes
+
     def decode(self, codes: torch.Tensor) -> torch.Tensor:
         """Decode codes into audio.
 
         Args:
-            codes: Tensor of shape [n_q, T]
+            codes: Tensor of shape [N_Q, T]
 
         Returns:
             audio: 1D audio tensor of shape [T]
@@ -67,7 +83,7 @@ class EncodecPip:
             audio: 1D audio tensor of shape [T]
 
         Returns:
-            embedding: Tensor of shape [c, t]
+            embedding: Tensor of shape [C, T]
         """
         assert audio.dim() == 1, f'Expected 1D audio tensor, got {audio.dim()}D'
         audio = rearrange(audio, 't -> 1 1 t')
