@@ -59,3 +59,17 @@ class EncodecPip:
         codes = self.encode(audio)
         audio = self.decode(codes)
         return audio
+
+    def get_embedding(self, audio: torch.Tensor) -> torch.Tensor:
+        """Get embedding of audio.
+
+        Args:
+            audio: 1D audio tensor of shape [T]
+
+        Returns:
+            embedding: Tensor of shape [c, t]
+        """
+        assert audio.dim() == 1, f'Expected 1D audio tensor, got {audio.dim()}D'
+        audio = rearrange(audio, 't -> 1 1 t')
+        emb = rearrange(self.model.encoder(audio), '1 c t -> c t')
+        return emb
