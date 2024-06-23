@@ -9,7 +9,7 @@ readme = "README.md"
 ruff = "ruff check valle"
 mypy = "mypy --ignore-missing-imports valle"
 pylint = "pylint --rcfile pyproject.toml valle"
-pytest = "pytest --cache-clear --cov=valle --cov-report=term-missing --cov-report=html tests"
+pytest = "pytest --cache-clear --cov=valle --disable-warnings tests"
 
 [tool.poetry.dependencies]
 python = "^3.10"
