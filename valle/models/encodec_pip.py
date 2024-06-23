@@ -49,6 +49,7 @@ class EncodecPip:
         codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
         return codes
 
+    @torch.inference_mode()
     def decode(self, codes: torch.Tensor) -> torch.Tensor:
         """Decode codes into audio.
 
@@ -63,6 +64,7 @@ class EncodecPip:
         codes = rearrange(self.model.decode([(codes, None)]), '1 1 t -> t')
         return codes
 
+    @torch.inference_mode()
     def encode_decode(self, audio: torch.Tensor) -> torch.Tensor:
         """Encode and decode audio.
 
@@ -76,6 +78,7 @@ class EncodecPip:
         audio = self.decode(codes)
         return audio
 
+    @torch.inference_mode()
     def get_embedding(self, audio: torch.Tensor) -> torch.Tensor:
         """Get embedding of audio.
 
