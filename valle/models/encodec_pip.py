@@ -65,6 +65,21 @@ class EncodecPip:
         return codes
 
     @torch.inference_mode()
+    def batch_decode(self, codes: torch.Tensor) -> torch.Tensor:
+        """Decode batch of codes into audio.
+
+        Args:
+            codes: Tensor of shape [B, N_Q, T]
+
+        Returns:
+            audio: 1D audio tensor of shape [B, T]
+        """
+        assert codes.dim() == 3, f'Expected 3D codes tensor, got {codes.dim()}D'
+        codes = rearrange(codes, 'b q t -> b 1 q t')
+        codes = self.model.decode([(codes, None)])
+        return codes
+
+    @torch.inference_mode()
     def encode_decode(self, audio: torch.Tensor) -> torch.Tensor:
         """Encode and decode audio.
 
