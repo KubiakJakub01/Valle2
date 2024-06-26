@@ -62,3 +62,21 @@ def test_batch_decode(codes: torch.Tensor, expected_shape: tuple[int]):
     audios = encodec.batch_decode(codes)
     assert audios.dim() == 2
     assert audios.shape == expected_shape
+
+
+@pytest.mark.parametrize(
+    'audio, expected_shapes',
+    [
+        (torch.randn(16000), (8, 50)),
+        (torch.randn(32000), (8, 100)),
+        (torch.randn(48000), (8, 150)),
+    ],
+)
+def test_encode_decode(audio: torch.Tensor, expected_shapes: tuple[int, int]):
+    encodec = EncodecPip()
+    codes = encodec.encode(audio)
+    assert codes.dim() == 2
+    assert codes.shape == expected_shapes
+    output_audio = encodec.decode(codes)
+    assert audio.dim() == 1
+    assert output_audio.shape == audio.shape
