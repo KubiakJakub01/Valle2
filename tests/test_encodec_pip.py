@@ -80,3 +80,18 @@ def test_encode_decode(audio: torch.Tensor, expected_shapes: tuple[int, int]):
     output_audio = encodec.decode(codes)
     assert audio.dim() == 1
     assert output_audio.shape == audio.shape
+
+
+@pytest.mark.parametrize(
+    'audios, expected_shapes',
+    [
+        (torch.randn(16000), (8, 50)),
+        (torch.randn(32000), (8, 100)),
+        (torch.randn(48000), (8, 150)),
+    ],
+)
+def test_get_embedding(audios: torch.Tensor, expected_shapes: tuple[int, int]):
+    encodec = EncodecPip()
+    codes = encodec.get_embedding(audios)
+    assert codes.dim() == 2
+    assert codes.shape == expected_shapes
