@@ -107,3 +107,18 @@ class EncodecPip:
         audio = rearrange(audio, 't -> 1 1 t')
         emb = rearrange(self.model.encoder(audio), '1 c t -> c t')
         return emb
+
+    @torch.inference_mode()
+    def batch_get_embedding(self, audios: torch.Tensor) -> torch.Tensor:
+        """Get embedding of batch of audio.
+
+        Args:
+            audios: 2D audio tensor of shape [B, T]
+
+        Returns:
+            embedding: Tensor of shape [B, C, T]
+        """
+        assert audios.dim() == 2, f'Expected 2D audio tensor, got {audios.dim()}D'
+        audios = rearrange(audios, 'b t -> b 1 t')
+        emb = self.model.encoder(audios)
+        return emb
