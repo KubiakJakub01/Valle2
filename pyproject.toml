@@ -9,7 +9,7 @@ readme = "README.md"
 ruff = "ruff check valle"
 mypy = "mypy --ignore-missing-imports valle"
 pylint = "pylint --rcfile pyproject.toml valle"
-pytest = "pytest --cache-clear --cov=valle --cov-report=term-missing --cov-report=html tests"
+pytest = "pytest --cache-clear --cov=valle --disable-warnings tests"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -20,6 +20,8 @@ numpy = "^1.26.4"
 coloredlogs = "^15.0.1"
 matplotlib = "^3.8.4"
 sox = "^1.5.0"
+librosa = "^0.10.2.post1"
+encodec = "^0.1.1"
 
 [[tool.poetry.source]]
 name = "torch"

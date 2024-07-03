@@ -85,3 +85,17 @@ def normalize_loudness(
     transformer.norm(target_loudness)
     audio = transformer.build_array(input_array=audio.numpy(), sample_rate_in=sample_rate)
     return torch.tensor(audio)
+
+
+def convert_audio2mel(audio: Tensor, sample_rate: int = 16_000, n_mels: int = 80) -> Tensor:
+    """Convert audio to mel spectrogram."""
+    mel_spectrogram = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, n_mels=n_mels)(
+        audio
+    )
+    return mel_spectrogram
+
+
+def convert_audio2mfcc(audio: Tensor, sample_rate: int = 16_000, n_mfcc: int = 13) -> Tensor:
+    """Convert audio to MFCC."""
+    mfcc = torchaudio.transforms.MFCC(sample_rate=sample_rate, n_mfcc=n_mfcc)(audio)
+    return mfcc
