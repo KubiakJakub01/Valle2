@@ -72,7 +72,7 @@ class EncodecPip:
             codes: Tensor of shape [B, N_Q, T]
 
         Returns:
-            audio: 1D audio tensor of shape [B, T]
+            audio: 2D audio tensor of shape [B, T]
         """
         assert codes.dim() == 3, f'Expected 3D codes tensor, got {codes.dim()}D'
         codes = rearrange(codes, 'b q t -> b 1 q t')
