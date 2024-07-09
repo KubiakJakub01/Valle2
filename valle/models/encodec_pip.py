@@ -75,9 +75,9 @@ class EncodecPip:
             audio: 2D audio tensor of shape [B, T]
         """
         assert codes.dim() == 3, f'Expected 3D codes tensor, got {codes.dim()}D'
-        codes = rearrange(codes, 'b q t -> b 1 q t')
-        codes = self.model.decode([(codes, None)])
-        return codes
+        audios = self.model.decode([(codes, None)])
+        audios = rearrange(audios, 'b 1 t -> b t')
+        return audios
 
     @torch.inference_mode()
     def encode_decode(self, audio: torch.Tensor) -> torch.Tensor:
