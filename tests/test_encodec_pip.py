@@ -85,9 +85,9 @@ def test_encode_decode(audio: torch.Tensor, expected_shapes: tuple[int, int]):
 @pytest.mark.parametrize(
     'audios, expected_shapes',
     [
-        (torch.randn(16000), (8, 50)),
-        (torch.randn(32000), (8, 100)),
-        (torch.randn(48000), (8, 150)),
+        (torch.randn(16000), (128, 50)),
+        (torch.randn(32000), (128, 100)),
+        (torch.randn(48000), (128, 150)),
     ],
 )
 def test_get_embedding(audios: torch.Tensor, expected_shapes: tuple[int, int]):
@@ -100,9 +100,9 @@ def test_get_embedding(audios: torch.Tensor, expected_shapes: tuple[int, int]):
 @pytest.mark.parametrize(
     'audios, expected_shapes',
     [
-        (torch.randn(4, 16000), (4, 8, 50)),
-        (torch.randn(4, 32000), (4, 8, 100)),
-        (torch.randn(4, 48000), (4, 8, 150)),
+        (torch.randn(4, 16000), (4, 128, 50)),
+        (torch.randn(4, 32000), (4, 128, 100)),
+        (torch.randn(4, 48000), (4, 128, 150)),
     ],
 )
 def test_batch_get_embedding(audios: torch.Tensor, expected_shapes: tuple[int, int, int]):
