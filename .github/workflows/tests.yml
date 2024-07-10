@@ -26,4 +26,6 @@ jobs:
           poetry install --no-interaction --no-root
           poetry self add poetry-exec-plugin
       - name: Run pytest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: poetry exec pytest
