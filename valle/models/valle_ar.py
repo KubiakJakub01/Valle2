@@ -62,28 +62,9 @@ class ValleAR(nn.Module):
         y = self.audio_emb(y)  # (b t c)
         y = self.audio_position_emb(y)
 
-        # Prepare mask
-        x_mask = torch.cat(
-            (
-                torch.zeros((x_len, x_len), dtype=torch.bool, device=self.device),
-                torch.ones((x_len, y_len), dtype=torch.bool, device=self.device),
-            ),
-            dim=1,
-        )
-        y_mask = torch.cat(
-            (
-                torch.zeros((y_len, x_len), dtype=torch.bool, device=self.device),
-                torch.triu(
-                    torch.ones((y_len, y_len), dtype=torch.bool, device=self.device), diagonal=1
-                ),
-            ),
-            dim=1,
-        )
-        mask = torch.cat((x_mask, y_mask), dim=0)
-
         # Decoder
         xy = torch.cat((x, y), dim=1)
-        z, *_ = self.transformer(xy, attn_mask=mask)
+        z, *_ = self.transformer(xy, attn_mask=self._build_attn_mask(x_len, y_len))
         z = z[:, x_len:]
 
         # Project to output
@@ -127,3 +108,30 @@ class ValleAR(nn.Module):
                 break
 
         return y[:, 1:]
+
+    def _build_attn_mask(self, x_len: int, y_len: int) -> torch.Tensor:
+        """Prepare attention mask.
+
+        Args:
+            x_len: Length of tokens
+            y_len: Length of audio codes
+
+        Returns:
+            Attention mask tensor (x_len + y_len, x_len + y_len)"""
+        x_mask = torch.cat(
+            (
+                torch.zeros((x_len, x_len), dtype=torch.bool, device=self.device),
+                torch.ones((x_len, y_len), dtype=torch.bool, device=self.device),
+            ),
+            dim=1,
+        )
+        y_mask = torch.cat(
+            (
+                torch.zeros((y_len, x_len), dtype=torch.bool, device=self.device),
+                torch.triu(
+                    torch.ones((y_len, y_len), dtype=torch.bool, device=self.device), diagonal=1
+                ),
+            ),
+            dim=1,
+        )
+        return torch.cat((x_mask, y_mask), dim=0)
