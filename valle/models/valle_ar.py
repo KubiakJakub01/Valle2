@@ -112,6 +112,8 @@ class ValleAR(nn.Module):
     def _build_attn_mask(self, x_len: int, y_len: int) -> torch.Tensor:
         """Prepare attention mask.
 
+        1 - Masked, 0 - Not masked
+
         Args:
             x_len: Length of tokens
             y_len: Length of audio codes
