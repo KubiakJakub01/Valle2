@@ -64,7 +64,7 @@ class ValleAR(nn.Module):
 
         # Decoder
         xy = torch.cat((x, y), dim=1)
-        z, *_ = self.transformer(xy, attn_mask=self._build_attn_mask(x_len, y_len))
+        z, *_ = self.transformer(xy, attn_mask=self.build_attn_mask(x_len, y_len))
         z = z[:, x_len:]
 
         # Project to output
@@ -109,7 +109,7 @@ class ValleAR(nn.Module):
 
         return y[:, 1:]
 
-    def _build_attn_mask(self, x_len: int, y_len: int) -> torch.Tensor:
+    def build_attn_mask(self, x_len: int, y_len: int) -> torch.Tensor:
         """Prepare attention mask.
 
         1 - Masked, 0 - Not masked
