@@ -6,16 +6,13 @@ from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
-from .utils import build_attn_mask
+from .utils import build_attn_mask, create_pad_mask
 
 
 class ValleAR(nn.Module):
     def __init__(self, hparams: ValleHparams):
         super().__init__()
         self.hparams = hparams
-
-        self.eos_token = self.hparams.num_audio_tokens
-        self.bos_token = self.hparams.num_audio_tokens + 1
 
         # Embeddings
         self.tokens_emb = TokenEmbedding(self.hparams.vocab_size, self.hparams.d_model)
@@ -33,43 +30,59 @@ class ValleAR(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
+    @property
+    def eos_token(self):
+        return self.hparams.num_audio_tokens
+
+    @property
+    def bos_token(self):
+        return self.hparams.num_audio_tokens + 1
+
     def forward(
         self,
         tokens_list: list[torch.Tensor],
         codes_list: list[torch.Tensor],
-    ):
+    ) -> torch.Tensor:
         """Forward pass.
 
         Args:
             tokens_list: List of tokens tensor (tokens_len)
             codes_list: List of audio codes tensor (1, codes_len)
+
+        Returns:
+            loss: Loss value
         """
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
         # Prepare tokens
-        x_len = max(map(len, tokens_list))
-        x = pad_sequence(tokens_list, batch_first=True)
-        x = self.tokens_emb(x)  # (b t c)
-        x = self.tokens_position_emb(x)
+        tokens_lens = list(map(len, tokens_list))
+        tokens_len = max(tokens_lens)
+        tokens = pad_sequence(tokens_list, batch_first=True)
+        tokens = self.tokens_emb(tokens)  # (b t c)
+        tokens = self.tokens_position_emb(tokens)
 
         # Prepare audio
-        y_len = max(map(len, codes_list)) + 1
+        codes_lens = [x + 1 for x in map(len, codes_list)]
+        codes_len = max(codes_lens)
         target = pad_sequence(
             [F.pad(codes, (0, 1), value=self.eos_token) for codes in codes_list], batch_first=True
         )
-        y = pad_sequence(
+        codes = pad_sequence(
             [F.pad(codes, (1, 0), value=self.bos_token) for codes in codes_list], batch_first=True
         )
-        y = self.audio_emb(y)  # (b t c)
-        y = self.audio_position_emb(y)
+        codes = self.audio_emb(codes)  # (b t c)
+        codes = self.audio_position_emb(codes)
 
         # Decoder
-        xy = torch.cat((x, y), dim=1)
-        z, *_ = self.transformer(xy, attn_mask=build_attn_mask(x_len, y_len, self.device))
-        z = z[:, x_len:]
+        transformer_output, *_ = self.transformer(
+            torch.cat((tokens, codes), dim=1),
+            padding_mask=create_pad_mask(codes_lens, self.device),
+            attn_mask=build_attn_mask(tokens_len, codes_len, self.device),
+        )
+        transformer_output = transformer_output[:, tokens_len:]
 
         # Project to output
-        logits = rearrange(self.proj(z), 'b t c -> b c t')
+        logits = rearrange(self.proj(transformer_output), 'b t c -> b c t')
 
         # Compute loss
         loss = F.cross_entropy(logits, target)
