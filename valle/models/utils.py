@@ -46,13 +46,13 @@ def topk_sampling(
     """Top-k sampling.
 
     Args:
-        logits: Logits tensor (b c t)
+        logits: Logits tensor (b c)
         top_k: Top-k value
         tok_p: Token probability
         temperature: Temperature
 
     Returns:
-        Sampled tokens tensor (b t)"""
+        Next sampled token (b 1) and current log probabilities (b 1)"""
     if temperature is not None:
         logits = logits / temperature
 
@@ -60,7 +60,7 @@ def topk_sampling(
     logits = top_k_top_p_filtering(logits, top_k=top_k, top_p=tok_p)
     sampled_token = torch.multinomial(F.softmax(logits, dim=-1), num_samples=1)
     logprobs = F.log_softmax(logits, dim=-1)
-    current_logprobs = torch.gather(logprobs, -1, sampled_token)
+    current_logprobs = logprobs[torch.arange(logits.shape[0]), rearrange(sampled_token, 'b 1 -> b')]
 
     return sampled_token, current_logprobs
 
