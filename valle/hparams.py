@@ -36,6 +36,7 @@ class ValleHparams:
     top_k: int = field(default=50, metadata={'help': 'Top-k for sampling'})
     tok_p: float = field(default=1.0, metadata={'help': 'Token probability'})
     temperature: float = field(default=1.0, metadata={'help': 'Temperature'})
+    length_penalty: float = field(default=1.0, metadata={'help': 'Length penalty'})
 
     @property
     def quantization_factor(self):
