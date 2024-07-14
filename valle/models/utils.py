@@ -63,3 +63,23 @@ def topk_sampling(
     current_logprobs = torch.gather(logprobs, -1, sampled_token)
 
     return sampled_token, current_logprobs
+
+
+def get_best_beam(x, sum_logprobs, stop_token, length_penalty=1.0):
+    """Get best beam.
+
+    Args:
+        x: Current tokens (b t)
+        sum_logprobs: Sum of log probabilities (b)
+        stop_token: Stop token
+        length_penalty: Length penalty
+
+    Returns:
+        Best beam tensor (b t)"""
+    length = torch.sum(x != stop_token, dim=-1)
+    avg_logprobs = sum_logprobs / length**length_penalty
+
+    best_beam = x[torch.argmax(avg_logprobs), :]
+    best_beam = best_beam[best_beam != stop_token]
+
+    return best_beam
