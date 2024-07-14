@@ -2,6 +2,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange, repeat
 
 from ..hparams import ValleHparams
@@ -156,19 +157,15 @@ class MultiHeadAttention(nn.Module):
         if use_cache:
             kv = (k, v)
 
-        # scaled dot-product attention
-        attn = torch.matmul(q, rearrange(k, 'b h t d -> b h d t')) / math.sqrt(self.head_dim)
-
         # apply attention mask
         if attn_mask is not None:
             merged_mask = self.merge_masks(batch_size, attn_mask, padding_mask)
             assert merged_mask is not None, 'merged_mask should not be None'
-            attn = attn.masked_fill_(merged_mask.bool(), float('-inf'))
 
-        # softmax and weighted sum
-        attn = torch.softmax(attn, dim=-1)
-        x = torch.matmul(attn, v)
-        x = rearrange(x, 'b h n d -> b n (h d)')
+        # scaled dot-product attention
+        attn = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)  # pylint: disable=not-callable
+
+        # combine heads
         x = self.out(x)
 
         return x, attn, kv
