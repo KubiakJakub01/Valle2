@@ -92,33 +92,33 @@ class ValleAR(nn.Module):
     @torch.inference_mode()
     def generate(
         self,
-        tokens: torch.Tensor,
-        codes: torch.Tensor,
+        prompt_tokens: torch.Tensor,
+        prompt_codes: torch.Tensor,
+        target_tokens: torch.Tensor | None,
     ):
-        """Generate audio codes.
+        """Generate first layer audio codes from tokens.
 
         Args:
-            tokens: Tokens tensor (tokens_len)
-            codes: Audio codes tensor (quantization_layers, codes_len)
-
-        Returns:
-            Generated audio codes tensor (1, codes_len)
+            prompt_tokens: Prompt tokens (prompt_tokens_len)
+            prompt_codes: Prompt audio codes (codes_len, num_quantizers)
+            target_tokens: Target tokens (target_tokens_len)
         """
-        x = self.tokens_emb(tokens)
+        assert prompt_tokens.dim() == 1, 'Prompt tokens should be 1D tensor.'
+        assert prompt_codes.dim() == 2, 'Prompt codes should be 2D tensor.'
+        if target_tokens is not None:
+            assert target_tokens.dim() == 1, 'Target tokens should be 1D tensor.'
 
-        y = F.pad(codes, (1, 0), value=self.bos_token)
-        y = self.audio_emb(y)
-        y = self.audio_position_emb(y)
+        # Get first layer from prompt codes and add bos token
+        prompt_codes = F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token)
+        prompt_len = prompt_codes.shape[0]
+        kv_cache = None
 
-        for _ in range(self.hparams.max_audio_len):
-            xy = torch.cat((x, y), dim=1)
-            z, *_ = self.transformer(xy)
-            z = z[:, -1:]
+        # Merge tokens
+        tokens = (
+            torch.cat((prompt_tokens, target_tokens), dim=0)
+            if target_tokens is not None
+            else prompt_tokens
+        )
+        tokens = rearrange(tokens, 't -> 1 t')
 
-            logits = self.proj(z)
-            y = torch.cat((y, logits.argmax(dim=-1)), dim=1)
-
-            if y[0, -1] == self.eos_token:
-                break
-
-        return y[:, 1:]
+        return tokens, prompt_len, kv_cache
