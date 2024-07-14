@@ -1,5 +1,7 @@
 import torch
+import torch.nn.functional as F
 from einops import rearrange
+from transformers.generation.utils import top_k_top_p_filtering
 
 
 def create_pad_mask(x_len_list, device):
@@ -36,3 +38,28 @@ def build_attn_mask(x_len: int, y_len: int, device: torch.device) -> torch.Tenso
         dim=1,
     )
     return torch.cat((x_mask, y_mask), dim=0)
+
+
+def topk_sampling(
+    logits: torch.Tensor, top_k: int = 50, tok_p: float = 1.0, temperature: float | None = 1.0
+):
+    """Top-k sampling.
+
+    Args:
+        logits: Logits tensor (b c t)
+        top_k: Top-k value
+        tok_p: Token probability
+        temperature: Temperature
+
+    Returns:
+        Sampled tokens tensor (b t)"""
+    if temperature is not None:
+        logits = logits / temperature
+
+    # Sampling
+    logits = top_k_top_p_filtering(logits, top_k=top_k, top_p=tok_p)
+    sampled_token = torch.multinomial(F.softmax(logits, dim=-1), num_samples=1)
+    logprobs = F.log_softmax(logits, dim=-1)
+    current_logprobs = torch.gather(logprobs, -1, sampled_token)
+
+    return sampled_token, current_logprobs
