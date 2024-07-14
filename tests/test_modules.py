@@ -23,10 +23,9 @@ def test_multi_head_attention(
     assert attention.head_dim == head_dim
     x = torch.randn(batch_size, seq_len, d_model)
     mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1)
-    output, attn, kv = attention(x, attn_mask=mask, use_cache=True)
+    output, kv = attention(x, attn_mask=mask, use_cache=True)
     k, v = kv
     assert output.shape == (batch_size, seq_len, d_model)
-    assert attn.shape == (batch_size, n_heads, seq_len, seq_len)
     assert k.shape == (batch_size, n_heads, seq_len, head_dim)
     assert v.shape == (batch_size, n_heads, seq_len, head_dim)
 
