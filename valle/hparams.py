@@ -29,6 +29,7 @@ class ValleHparams:
 
     # Generation
     max_audio_len: int = field(default=1024, metadata={'help': 'Max length for generation'})
+    num_beams: int = field(default=4, metadata={'help': 'Number of beams for generation'})
 
     @property
     def quantization_factor(self):

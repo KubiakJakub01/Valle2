@@ -109,16 +109,25 @@ class ValleAR(nn.Module):
             assert target_tokens.dim() == 1, 'Target tokens should be 1D tensor.'
 
         # Get first layer from prompt codes and add bos token
-        prompt_codes = F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token)
-        prompt_len = prompt_codes.shape[0]
-        kv_cache = None
+        prompt_codes = rearrange(
+            F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token), 't 1 -> 1 t 1'
+        )
+        prompt_len = prompt_codes.shape[1]
 
-        # Merge tokens
+        # Prepare tokens
         tokens = (
             torch.cat((prompt_tokens, target_tokens), dim=0)
             if target_tokens is not None
             else prompt_tokens
         )
         tokens = rearrange(tokens, 't -> 1 t')
+        tokens = self.tokens_emb(tokens)
+        tokens = self.tokens_position_emb(tokens)
 
-        return tokens, prompt_len, kv_cache
+        # Prepare decoding variables
+        kv_cache = None
+        sum_logprobs = torch.zeroes(self.hparams.num_beams, device=self.device)
+        tokens = tokens.repeat(self.hparams.num_beams, 1, 1)
+        prompt_codes = prompt_codes.repeat(self.hparams.num_beams, 1)
+
+        return tokens, prompt_len, kv_cache, sum_logprobs
