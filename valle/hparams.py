@@ -33,6 +33,9 @@ class ValleHparams:
     use_kv_cache: bool = field(
         default=True, metadata={'help': 'Use key-value cache for generation'}
     )
+    top_k: int = field(default=50, metadata={'help': 'Top-k for sampling'})
+    tok_p: float = field(default=1.0, metadata={'help': 'Token probability'})
+    temperature: float = field(default=1.0, metadata={'help': 'Temperature'})
 
     @property
     def quantization_factor(self):
