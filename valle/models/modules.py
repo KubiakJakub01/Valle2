@@ -38,7 +38,7 @@ class TokenEmbedding(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    r"""Inject some information about the relative or \
+    """Inject some information about the relative or \
             absolute position of the tokens in the sequence.
         The positional encodings have the same dimension as the embeddings, \
             so that the two can be summed.
@@ -66,7 +66,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        r"""Inputs of forward function
+        """Inputs of forward function
         Args:
             x: the sequence fed to the positional encoder model (required).
         Shape:
@@ -123,7 +123,7 @@ class MultiHeadAttention(nn.Module):
         kv_cache: torch.Tensor | None = None,
         use_cache: bool = False,
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor] | None]:
-        r"""Multi-Head Attention Forward Pass with kv-cache support
+        """Multi-Head Attention Forward Pass with kv-cache support
 
         Args:
             x: Input tensor of shape ``(batch_size, seq_len, d_model)``
@@ -173,8 +173,7 @@ class MultiHeadAttention(nn.Module):
     def merge_masks(
         self, batch_size: int, attn_mask: torch.Tensor | None, key_padding_mask: torch.Tensor | None
     ) -> torch.Tensor | None:
-        r"""
-        Merge attention and padding masks into a single mask
+        """Merge attention and padding masks into a single mask
 
         Args:
             attn_mask: attention mask of shape ``(seq_len, seq_len)``
