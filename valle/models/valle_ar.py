@@ -109,10 +109,8 @@ class ValleAR(nn.Module):
             assert target_tokens.dim() == 1, 'Target tokens should be 1D tensor.'
 
         # Get first layer from prompt codes and add bos token
-        prompt_codes = rearrange(
-            F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token), 't 1 -> 1 t 1'
-        )
-        prompt_len = prompt_codes.shape[1]
+        codes = rearrange(F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token), 't 1 -> 1 t 1')
+        prompt_len = codes.shape[1]
 
         # Prepare tokens
         tokens = (
@@ -128,6 +126,25 @@ class ValleAR(nn.Module):
         kv_cache = None
         sum_logprobs = torch.zeroes(self.hparams.num_beams, device=self.device)
         tokens = tokens.repeat(self.hparams.num_beams, 1, 1)
-        prompt_codes = prompt_codes.repeat(self.hparams.num_beams, 1)
+        codes = codes.repeat(self.hparams.num_beams, 1)
 
-        return tokens, prompt_len, kv_cache, sum_logprobs
+        # Decoding loop
+        for _ in range(self.hparams.max_audio_len):
+            # Prepare audio codes
+            codes = self.audio_emb(codes)
+            codes = self.audio_position_emb(codes)
+
+            # Concatenate tokens and codes
+            transformer_input = torch.cat([tokens, codes], dim=1)
+
+            # Keep track of kv_cache for faster decoding
+            if self.hparams.use_kv_cache and kv_cache is not None:
+                transformer_input = transformer_input[:, [-1]]
+                attn_mask = None
+                tokens_len = 0
+            else:
+                tokens_len = tokens.shape[1]
+                attn_mask = build_attn_mask(tokens_len, prompt_len, self.device)
+                kv_cache = tuple([None] * self.hparams.num_layers)
+
+        return tokens, prompt_len, kv_cache, sum_logprobs, attn_mask
