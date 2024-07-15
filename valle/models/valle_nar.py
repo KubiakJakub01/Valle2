@@ -124,8 +124,8 @@ class ValleNAR(nn.Module):
             output_codes: Output audio codes (output_len, quantization_layers).
         """
         # Prepare prompts
+        emb_prompt_codes, emb_output_codes = 0.0, 0.0
         output_codes = target_codes_first_layer
-        emb_prompt_codes = 0
         prompt_len, num_quantizers = prompt_codes.shape
         prompt_codes = rearrange(prompt_codes, 't c -> c t')
         for j in range(num_quantizers):
@@ -140,7 +140,7 @@ class ValleNAR(nn.Module):
         # Decoding loop
         for n_layer in range(1, num_quantizers):
             # Prepare codes
-            emb_output_codes = self.codes_embs[n_layer](output_codes)
+            emb_output_codes += self.codes_embs[n_layer](output_codes)
             codes = rearrange(
                 torch.cat([emb_prompt_codes, emb_output_codes], dim=0), 't c -> 1 t c'
             )
