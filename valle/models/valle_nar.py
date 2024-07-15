@@ -124,7 +124,8 @@ class ValleNAR(nn.Module):
             output_codes: Output audio codes (output_len, quantization_layers).
         """
         # Prepare prompts
-        emb_prompt_codes, emb_output_codes = 0.0, 0.0
+        emb_prompt_codes = torch.zeros_like(prompt_codes)
+        emb_output_codes = torch.zeros_like(target_codes_first_layer)
         output_codes = target_codes_first_layer
         prompt_len, num_quantizers = prompt_codes.shape
         prompt_codes = rearrange(prompt_codes, 't c -> c t')
