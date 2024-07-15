@@ -120,7 +120,7 @@ class ValleAR(nn.Module):
         # Get first layer from prompt codes and add bos token
         prompt_codes = rearrange(
             F.pad(prompt_codes[..., 0], (1, 0), value=self.bos_token), 't -> 1 t'
-        )
+        )  # (b t)
         prompt_len = prompt_codes.shape[1]
 
         # Prepare tokens
@@ -130,7 +130,7 @@ class ValleAR(nn.Module):
             else prompt_tokens
         )
         tokens_len = tokens.shape[0]
-        tokens = rearrange(tokens, 't -> 1 t')
+        tokens = rearrange(tokens, 't -> 1 t')  # (b t)
         tokens = self.tokens_emb(tokens)
         tokens = self.tokens_position_emb(tokens)
 

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from torch.distributions import Categorical
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
@@ -21,7 +22,7 @@ class ValleNAR(nn.Module):
 
         # Embeddings
         self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
-        self.audio_embs = nn.ModuleList(
+        self.codes_embs = nn.ModuleList(
             [
                 TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
                 for _ in range(hparams.num_quantizers)
@@ -30,17 +31,19 @@ class ValleNAR(nn.Module):
         self.tokens_position_emb = PositionalEncoding(hparams.d_model)
         self.audio_position_emb = PositionalEncoding(hparams.d_model)
         self.stage_embs = nn.ModuleList(
-            [
-                TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
-                for _ in range(hparams.num_quantizers - 1)
-            ]
+            [TokenEmbedding(1, hparams.d_model) for _ in range(hparams.num_quantizers - 1)]
         )
 
         # Decoder
         self.transformer = Transformer(hparams)
 
         # Project to output
-        self.proj = nn.Linear(hparams.d_model, hparams.num_audio_tokens + 1, bias=False)
+        self.proj_layers = nn.ModuleList(
+            [
+                nn.Linear(hparams.d_model, hparams.num_audio_tokens, bias=False)
+                for _ in range(hparams.num_quantizers - 1)
+            ]
+        )
 
     @property
     def device(self):
@@ -88,13 +91,13 @@ class ValleNAR(nn.Module):
         xy = torch.cat([tokens, codes], dim=1)
 
         # Forward pass
-        z = self.transformer(
+        z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, max(tokens_lens) + prefix_len]
+        z = z[:, tokens_len + prefix_len]
 
         # Project to output
-        logits = self.proj(z)
+        logits = self.proj_layers[layer - 1](z)
 
         # Compute loss
         loss = F.cross_entropy(logits, target)
@@ -104,48 +107,61 @@ class ValleNAR(nn.Module):
     @torch.inference_mode()
     def generate(
         self,
-        tokens: torch.Tensor,
-        codes: torch.Tensor,
+        prompt_tokens: torch.Tensor,
+        prompt_codes: torch.Tensor,
+        target_tokens: torch.Tensor,
+        target_codes_first_layer: torch.Tensor,
     ) -> torch.Tensor:
-        """Generate audio from tokens.
+        """Generate remaining audio codes layers.
 
         Args:
-            tokens: Token sequence (tokens_len).
-            codes: Audio codes (codes_len, quantization_layers).
+            prompt_tokens: Token sequences (prompt_tokens_len).
+            prompt_codes: Audio codes (prompt_codes_len, quantization_layers).
+            target_tokens: Target token sequences (target_tokens_len).
+            target_codes_first_layer: Target audio codes (target_codes_len).
 
         Returns:
-            audio: Generated audio (codes_len).
+            output_codes: Output audio codes (output_len, quantization_layers).
         """
+        # Prepare prompts
+        output_codes = target_codes_first_layer
+        emb_prompt_codes = 0
+        prompt_len, num_quantizers = prompt_codes.shape
+        prompt_codes = rearrange(prompt_codes, 't c -> c t')
+        for j in range(num_quantizers):
+            emb_prompt_codes += self.codes_embs[j](prompt_codes[j])
+
         # Prepare tokens
-        tokens = rearrange(tokens, 't -> 1 t')
+        tokens = rearrange(torch.cat([prompt_tokens, target_tokens], dim=0), 't -> 1 t')
+        _, tokens_len = tokens.shape
         tokens = self.tokens_emb(tokens)
         tokens = self.tokens_position_emb(tokens)
 
-        # Prepare audio
-        codes, _ = self._prepare_audio_codes(codes, self.hparams.num_quantizers)
+        # Decoding loop
+        for n_layer in range(1, num_quantizers):
+            # Prepare codes
+            emb_output_codes = self.codes_embs[n_layer](output_codes)
+            codes = rearrange(
+                torch.cat([emb_prompt_codes, emb_output_codes], dim=0), 't c -> 1 t c'
+            )
+            codes = self.audio_position_emb(codes)
 
-        # Prepare mask
-        tokens_len = tokens.shape[1]
-        codes_len = codes.shape[1]
-        codes_pad_mask = F.pad(
-            create_pad_mask([codes_len], self.device),
-            (tokens_len, 0),
-            value=False,
-        )
+            # Transformer
+            transformer_input = torch.cat([tokens, codes], dim=1)
+            transformer_output = self.transformer(
+                transformer_input, embedding=self.stage_embs[n_layer - 1].weight
+            )
 
-        # Concatenate tokens and codes
-        xy = torch.cat([tokens, codes], dim=1)
+            # Project to output
+            logits = self.proj_layers[n_layer - 1](transformer_output[:, tokens_len + prompt_len :])
 
-        # Forward pass
-        z = self.transformer(xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[-1].weight)
+            # Sampling
+            sampled_tokens = Categorical(logits=logits / self.hparams.temperature).sample()
 
-        # Project to output
-        logits = self.proj(z)
+            # Update output codes
+            output_codes = torch.cat([output_codes, sampled_tokens], dim=0)
 
-        # Generate audio
-        audio = torch.argmax(logits, dim=-1)
-
-        return audio
+        return output_codes
 
     def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
         """Prepare prompt audio.
@@ -160,12 +176,12 @@ class ValleNAR(nn.Module):
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
         prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
-        prompts_codes: torch.Tensor = self.audio_embs[0](codes[:, :prefix_len, 0])
-        emb_codes: torch.Tensor = self.audio_embs[0](codes[:, prefix_len:, 0])
+        prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
+        emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
         for j in range(1, self.hparams.num_quantizers):
-            prompts_codes += self.audio_embs[j](codes[:, :prefix_len, j])
+            prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
-                emb_codes += self.audio_embs[j](codes[:, prefix_len:, j])
+                emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])
         y_emb = torch.concat((prompts_codes, emb_codes), dim=1)
 
         return y_emb, prefix_len
