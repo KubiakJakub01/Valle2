@@ -29,6 +29,14 @@ class ValleHparams:
 
     # Generation
     max_audio_len: int = field(default=1024, metadata={'help': 'Max length for generation'})
+    num_beams: int = field(default=4, metadata={'help': 'Number of beams for generation'})
+    use_kv_cache: bool = field(
+        default=True, metadata={'help': 'Use key-value cache for generation'}
+    )
+    top_k: int = field(default=50, metadata={'help': 'Top-k for sampling'})
+    tok_p: float = field(default=1.0, metadata={'help': 'Token probability'})
+    temperature: float = field(default=1.0, metadata={'help': 'Temperature'})
+    length_penalty: float = field(default=1.0, metadata={'help': 'Length penalty'})
 
     @property
     def quantization_factor(self):
