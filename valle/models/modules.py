@@ -160,6 +160,8 @@ class MultiHeadAttention(nn.Module):
         if attn_mask is not None:
             attn_mask = self.merge_masks(batch_size, attn_mask, padding_mask)
             assert attn_mask is not None, 'attn_mask should not be None'
+            # Scale dot product attention takes `False` as mask
+            attn_mask = ~attn_mask.to(dtype=torch.bool)
 
         # scaled dot-product attention
         attn = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask)  # pylint: disable=not-callable
@@ -201,8 +203,6 @@ class MultiHeadAttention(nn.Module):
                     key_padding_mask, 'b t -> b n h t', b=batch_size, n=self.n_heads, h=1
                 )
                 merged_mask = attn_mask_expanded + key_padding_mask_expanded
-
-            merged_mask = ~merged_mask  # `False` means masked
 
         return merged_mask
 
