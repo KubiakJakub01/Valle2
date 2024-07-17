@@ -38,6 +38,9 @@ class ValleHparams:
     temperature: float = field(default=1.0, metadata={'help': 'Temperature'})
     length_penalty: float = field(default=1.0, metadata={'help': 'Length penalty'})
 
+    # Training
+    seed: int = field(default=42, metadata={'help': 'Seed for reproducibility'})
+
     @property
     def quantization_factor(self):
         return self.sampling_rate // self.polling_factor

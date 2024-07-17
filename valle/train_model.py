@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 from typing import get_args
 
+from lightning.pytorch import seed_everything
+
 from .hparams import ValleHparams
 from .models import MODEL_DICT, get_model_class
 from .utils import log_info
@@ -9,6 +11,7 @@ from .utils import log_info
 
 def train(hparams_fp: Path, model_name: str):
     hparams = ValleHparams.from_json(hparams_fp)
+    seed_everything(hparams.seed)
     model = get_model_class(model_name)(hparams)
 
     # Train model
