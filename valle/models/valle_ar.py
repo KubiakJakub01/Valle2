@@ -1,3 +1,4 @@
+import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,11 +6,12 @@ from einops import rearrange
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
+from ..utils import to_device
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import build_attn_mask, create_pad_mask, get_best_beam, topk_sampling
 
 
-class ValleAR(nn.Module):
+class ValleAR(L.LightningModule):
     def __init__(self, hparams: ValleHparams):
         super().__init__()
         self.hparams = hparams
@@ -38,20 +40,21 @@ class ValleAR(nn.Module):
     def bos_token(self):
         return self.hparams.num_audio_tokens + 1
 
-    def forward(
-        self,
-        tokens_list: list[torch.Tensor],
-        codes_list: list[torch.Tensor],
-    ) -> torch.Tensor:
+    def training_step(self, batch) -> torch.Tensor:
         """Forward pass.
 
         Args:
-            tokens_list: List of tokens tensor (tokens_len)
-            codes_list: List of audio codes tensor (codes_len)
+            batch: Batch data
+            batch_idx: Batch index
 
         Returns:
             loss: Loss value
         """
+        # pylint: disable=arguments-differ
+        batch = to_device(batch, self.device)
+        tokens_list = batch['tokens']
+        codes_list = batch['codes']
+
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
         # Prepare tokens
@@ -92,6 +95,8 @@ class ValleAR(nn.Module):
 
         # Compute loss
         loss = F.cross_entropy(logits, target)
+
+        self.log('train/loss', loss)
 
         return loss
 
