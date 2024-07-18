@@ -64,7 +64,7 @@ def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16_000) -> 
         audio = audio.mean(dim=0)
     # Normalize to target sample rate
     if orginal_sr != target_sr:
-        audio = torchaudio.transforms.Resample(orig_freq=orginal_sr, new_freq=target_sr)(audio)
+        audio = torchaudio.functional.resample(audio, orig_freq=orginal_sr, new_freq=target_sr)
     # Normalize to [-1, 1]
     audio = audio / audio.abs().max()
     return audio
