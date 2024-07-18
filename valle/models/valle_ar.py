@@ -14,7 +14,7 @@ from .utils import build_attn_mask, create_pad_mask, get_best_beam, topk_samplin
 class ValleAR(L.LightningModule):
     def __init__(self, hparams: ValleHparams):
         super().__init__()
-        self.hparams = hparams
+        self.hparams: ValleHparams = hparams
 
         # Embeddings
         self.tokens_emb = TokenEmbedding(self.hparams.vocab_size, self.hparams.d_model)
@@ -189,3 +189,7 @@ class ValleAR(L.LightningModule):
         output_codes = output_codes[output_codes != self.eos_token]
 
         return output_codes
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        return optimizer

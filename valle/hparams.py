@@ -27,6 +27,9 @@ class ValleHparams:
         default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
     )
 
+    # Optimizer
+    lr: float = field(default=1e-4, metadata={'help': 'Learning rate'})
+
     # Generation
     max_audio_len: int = field(default=1024, metadata={'help': 'Max length for generation'})
     num_beams: int = field(default=4, metadata={'help': 'Number of beams for generation'})
