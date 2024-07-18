@@ -5,6 +5,9 @@ from typing import Literal
 
 @dataclass
 class ValleHparams:
+    # Dataset
+    dataset: str = field(default='theodorr/ljspeech', metadata={'help': 'Hugging Face dataset'})
+
     # Input features
     vocab_size: int = field(default=256, metadata={'help': 'Vocab size'})
     num_audio_tokens: int = field(default=1024, metadata={'help': 'Number of audio tokens'})
@@ -43,6 +46,7 @@ class ValleHparams:
 
     # Training
     seed: int = field(default=42, metadata={'help': 'Seed for reproducibility'})
+    batch_size: int = field(default=4, metadata={'help': 'Batch size'})
 
     @property
     def quantization_factor(self):
