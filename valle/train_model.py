@@ -17,8 +17,7 @@ def train(hparams_fp: Path, model_name: str):
     model = get_model_class(model_name)(hparams)
 
     # Train model
-    log_info(f'Training model {model_name} with hparams: {hparams}')
-    log_info(f'Model: {model}')
+    log_info('Training model %s with hparams: ', model_name, hparams)
 
     # Load data
     train_dataloader = get_dataloaders(hparams, 'train')
