@@ -47,6 +47,9 @@ class ValleHparams:
     # Training
     seed: int = field(default=42, metadata={'help': 'Seed for reproducibility'})
     batch_size: int = field(default=4, metadata={'help': 'Batch size'})
+    max_steps: int = field(default=1000, metadata={'help': 'Max steps'})
+    log_every_n_steps: int = field(default=100, metadata={'help': 'Log every n steps'})
+    ckpt_path: str = field(default='checkpoints', metadata={'help': 'Checkpoint path'})
 
     @property
     def quantization_factor(self):

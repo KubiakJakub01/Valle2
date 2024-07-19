@@ -2,8 +2,10 @@ import argparse
 from pathlib import Path
 from typing import get_args
 
+import lightning as L
 from lightning.pytorch import seed_everything
 
+from .data import get_dataloaders
 from .hparams import ValleHparams
 from .models import MODEL_DICT, get_model_class
 from .utils import log_info
@@ -17,6 +19,14 @@ def train(hparams_fp: Path, model_name: str):
     # Train model
     log_info(f'Training model {model_name} with hparams: {hparams}')
     log_info(f'Model: {model}')
+
+    # Load data
+    train_dataloader = get_dataloaders(hparams, 'train')
+    val_dataloader = get_dataloaders(hparams, 'val')
+
+    # Train model
+    trainer = L.Trainer(max_steps=hparams.max_steps, log_every_n_steps=hparams.log_every_n_steps)
+    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=hparams.ckpt_path)
 
 
 if __name__ == '__main__':
