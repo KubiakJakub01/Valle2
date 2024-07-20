@@ -24,7 +24,12 @@ def train(hparams_fp: Path, model_name: str):
     val_dataloader = get_dataloaders(hparams, 'val')
 
     # Train model
-    trainer = L.Trainer(max_steps=hparams.max_steps, log_every_n_steps=hparams.log_every_n_steps)
+    trainer = L.Trainer(
+        max_steps=hparams.max_steps,
+        log_every_n_steps=hparams.log_every_n_steps,
+        gradient_clip_val=hparams.gradient_clip_val,
+        accumulate_grad_batches=hparams.grad_accum,
+    )
     trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=hparams.ckpt_path)
 
 
