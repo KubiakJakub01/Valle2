@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from torch import optim
 from torch.nn.utils.rnn import pad_sequence
 
 from ..hparams import ValleHparams
@@ -191,10 +192,15 @@ class ValleAR(L.LightningModule):
         return output_codes
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
+        optimizer = optim.AdamW(
             self.parameters(),
             lr=self.hparams.lr,
             betas=self.hparams.betas,
             weight_decay=self.hparams.weight_decay,
+            fused=True,
         )
-        return optimizer
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            self.hparams.lr_warmup,
+        )
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
