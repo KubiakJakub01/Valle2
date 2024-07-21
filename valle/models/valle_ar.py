@@ -191,5 +191,10 @@ class ValleAR(L.LightningModule):
         return output_codes
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr)
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.hparams.lr,
+            betas=self.hparams.betas,
+            weight_decay=self.hparams.weight_decay,
+        )
         return optimizer

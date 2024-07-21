@@ -32,6 +32,8 @@ class ValleHparams:
 
     # Optimizer
     lr: float = field(default=1e-4, metadata={'help': 'Learning rate'})
+    betas: tuple = field(default=(0.9, 0.98), metadata={'help': 'Betas for Adam optimizer'})
+    weight_decay: float = field(default=0.1, metadata={'help': 'Weight decay'})
     gradient_clip_val: float = field(default=1.0, metadata={'help': 'Gradient clipping value'})
     grad_accum: int = field(default=1, metadata={'help': 'Gradient accumulation steps'})
 
