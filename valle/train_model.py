@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import get_args
 
 import lightning as L
-from lightning.pytorch import seed_everything
+from lightning.pytorch import loggers, seed_everything
 
 from .data import get_dataloaders
 from .hparams import ValleHparams
@@ -21,7 +21,9 @@ def train(hparams_fp: Path, model_name: str):
 
     # Load data
     train_dataloader = get_dataloaders(hparams, 'train')
-    val_dataloader = get_dataloaders(hparams, 'val')
+
+    # Logger
+    logger = loggers.TensorBoardLogger(hparams.log_path, name=model_name)
 
     # Train model
     trainer = L.Trainer(
@@ -29,8 +31,9 @@ def train(hparams_fp: Path, model_name: str):
         log_every_n_steps=hparams.log_every_n_steps,
         gradient_clip_val=hparams.gradient_clip_val,
         accumulate_grad_batches=hparams.grad_accum,
+        logger=logger,
     )
-    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path=hparams.ckpt_path)
+    trainer.fit(model, train_dataloader, ckpt_path=hparams.ckpt_path)
 
 
 if __name__ == '__main__':

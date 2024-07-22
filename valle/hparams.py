@@ -56,6 +56,7 @@ class ValleHparams:
     max_steps: int = field(default=1000, metadata={'help': 'Max steps'})
     log_every_n_steps: int = field(default=100, metadata={'help': 'Log every n steps'})
     ckpt_path: str = field(default='checkpoints', metadata={'help': 'Checkpoint path'})
+    log_path: str = field(default='logs', metadata={'help': 'Log path'})
 
     @property
     def quantization_factor(self):
