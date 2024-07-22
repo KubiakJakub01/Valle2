@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 
@@ -55,8 +56,23 @@ class ValleHparams:
     batch_size: int = field(default=4, metadata={'help': 'Batch size'})
     max_steps: int = field(default=1000, metadata={'help': 'Max steps'})
     log_every_n_steps: int = field(default=100, metadata={'help': 'Log every n steps'})
-    ckpt_path: str = field(default='checkpoints', metadata={'help': 'Checkpoint path'})
-    log_path: str = field(default='logs', metadata={'help': 'Log path'})
+    ckpt_path: Path = field(
+        default=Path('models/checkpoints'), metadata={'help': 'Checkpoint path'}
+    )
+    log_path: Path = field(default=Path('models/logs'), metadata={'help': 'Log path'})
+
+    def __post_init__(self):
+        if self.dataset is None:
+            raise ValueError('Dataset must be provided')
+        if self.norm not in ['AdaptiveLayerNorm', 'LayerNorm']:
+            raise ValueError('Normalization layer must be AdaptiveLayerNorm or LayerNorm')
+        if self.activation not in ['relu', 'gelu']:
+            raise ValueError('Activation function must be relu or gelu')
+
+        self.ckpt_path = Path(self.ckpt_path)
+        self.ckpt_path.mkdir(parents=True, exist_ok=True)
+        self.log_path = Path(self.log_path)
+        self.log_path.mkdir(parents=True, exist_ok=True)
 
     @property
     def quantization_factor(self):
