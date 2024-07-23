@@ -6,28 +6,28 @@ from einops import rearrange
 from torch import optim
 from torch.nn.utils.rnn import pad_sequence
 
-from ..hparams import ValleHparams
+from ..config import ConfigValle
 from ..utils import to_device
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import build_attn_mask, create_pad_mask, get_best_beam, topk_sampling
 
 
 class ValleAR(L.LightningModule):
-    def __init__(self, hparams: ValleHparams):
+    def __init__(self, config: ConfigValle):
         super().__init__()
-        self.hparams: ValleHparams = hparams
+        self.config = config
 
         # Embeddings
-        self.tokens_emb = TokenEmbedding(self.hparams.vocab_size, self.hparams.d_model)
-        self.audio_emb = TokenEmbedding(self.hparams.num_audio_tokens + 2, self.hparams.d_model)
-        self.tokens_position_emb = PositionalEncoding(self.hparams.d_model)
-        self.audio_position_emb = PositionalEncoding(self.hparams.d_model)
+        self.tokens_emb = TokenEmbedding(self.config.vocab_size, self.config.d_model)
+        self.audio_emb = TokenEmbedding(self.config.num_audio_tokens + 2, self.config.d_model)
+        self.tokens_position_emb = PositionalEncoding(self.config.d_model)
+        self.audio_position_emb = PositionalEncoding(self.config.d_model)
 
         # Transformer
-        self.transformer = Transformer(self.hparams)
+        self.transformer = Transformer(self.config)
 
         # Project to output
-        self.proj = nn.Linear(self.hparams.d_model, self.hparams.num_audio_tokens + 1, bias=False)
+        self.proj = nn.Linear(self.config.d_model, self.config.num_audio_tokens + 1, bias=False)
 
     @property
     def device(self):
@@ -35,11 +35,11 @@ class ValleAR(L.LightningModule):
 
     @property
     def eos_token(self):
-        return self.hparams.num_audio_tokens
+        return self.config.num_audio_tokens
 
     @property
     def bos_token(self):
-        return self.hparams.num_audio_tokens + 1
+        return self.config.num_audio_tokens + 1
 
     def training_step(self, batch) -> torch.Tensor:
         """Forward pass.
@@ -145,12 +145,12 @@ class ValleAR(L.LightningModule):
 
         # Prepare decoding variables
         kv_cache = None
-        sum_logprobs = torch.zeros(self.hparams.num_beams, device=self.device)
-        tokens = tokens.repeat(self.hparams.num_beams, 1, 1)
-        prompt_codes = prompt_codes.repeat(self.hparams.num_beams, 1)
+        sum_logprobs = torch.zeros(self.config.num_beams, device=self.device)
+        tokens = tokens.repeat(self.config.num_beams, 1, 1)
+        prompt_codes = prompt_codes.repeat(self.config.num_beams, 1)
 
         # Decoding loop
-        for _ in range(self.hparams.max_audio_len):
+        for _ in range(self.config.max_audio_len):
             # Prepare audio codes
             codes = self.audio_emb(prompt_codes)
             codes = self.audio_position_emb(codes)
@@ -163,7 +163,7 @@ class ValleAR(L.LightningModule):
                 transformer_input,
                 attn_mask=attn_mask,
                 kv_cache=kv_cache,
-                use_cache=self.hparams.use_kv_cache,
+                use_cache=self.config.use_kv_cache,
             )
 
             # Project to output
@@ -172,9 +172,9 @@ class ValleAR(L.LightningModule):
             # Sampling
             samples, current_logprobs = topk_sampling(
                 logits=logits,
-                top_k=self.hparams.top_k,
-                tok_p=self.hparams.tok_p,
-                temperature=self.hparams.temperature,
+                top_k=self.config.top_k,
+                tok_p=self.config.tok_p,
+                temperature=self.config.temperature,
             )
             sum_logprobs += current_logprobs * (prompt_codes[:, -1] != self.eos_token)
             samples[prompt_codes[:, -1] == self.eos_token] = self.eos_token
@@ -184,7 +184,7 @@ class ValleAR(L.LightningModule):
 
         # Prepare output
         output_codes = get_best_beam(
-            prompt_codes, sum_logprobs, self.eos_token, self.hparams.length_penalty
+            prompt_codes, sum_logprobs, self.eos_token, self.config.length_penalty
         )
         output_codes = output_codes[prompt_len:]
         output_codes = output_codes[output_codes != self.eos_token]
@@ -194,13 +194,13 @@ class ValleAR(L.LightningModule):
     def configure_optimizers(self):
         optimizer = optim.AdamW(
             self.parameters(),
-            lr=self.hparams.lr,
-            betas=self.hparams.betas,
-            weight_decay=self.hparams.weight_decay,
+            lr=self.config.lr,
+            betas=self.config.betas,
+            weight_decay=self.config.weight_decay,
             fused=True,
         )
         lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            self.hparams.lr_warmup,
+            self.config.lr_warmup,
         )
         return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}

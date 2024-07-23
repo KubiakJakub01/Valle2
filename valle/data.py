@@ -5,15 +5,15 @@ from datasets import load_dataset
 from einops import rearrange
 from torch.utils.data import DataLoader, Dataset
 
-from .hparams import ValleHparams
+from .config import ConfigValle
 from .models import EncodecPip
 from .utils import normalize_audio
 
 
 class ValleDataset(Dataset):
-    def __init__(self, dataset, hparams):
+    def __init__(self, dataset, config):
         self.dataset = dataset
-        self.hparams = hparams
+        self.config = config
         self.encodec_pip = EncodecPip()
 
     def __len__(self):
@@ -35,7 +35,7 @@ class ValleDataset(Dataset):
         return {'codes': codes, 'tokens': tokens}
 
 
-def get_dataloaders(hparams: ValleHparams, split: Literal['train', 'val']):
+def get_dataloaders(hparams: ConfigValle, split: Literal['train', 'val']):
     dataset = load_dataset(hparams.dataset, split=split)
     valle_dataset = ValleDataset(dataset, hparams)
     dataloader = DataLoader(

@@ -7,41 +7,41 @@ from einops import rearrange
 from torch.distributions import Categorical
 from torch.nn.utils.rnn import pad_sequence
 
-from ..hparams import ValleHparams
+from ..config import ConfigValle
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import create_pad_mask
 
 
 class ValleNAR(nn.Module):
-    def __init__(self, hparams: ValleHparams):
+    def __init__(self, config: ConfigValle):
         super().__init__()
-        self.hparams = hparams
+        self.hparams = config
 
-        self.eos_token = hparams.num_audio_tokens
-        self.bos_token = hparams.num_audio_tokens + 1
+        self.eos_token = config.num_audio_tokens
+        self.bos_token = config.num_audio_tokens + 1
 
         # Embeddings
-        self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
+        self.tokens_emb = TokenEmbedding(config.vocab_size, config.d_model)
         self.codes_embs = nn.ModuleList(
             [
-                TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
-                for _ in range(hparams.num_quantizers)
+                TokenEmbedding(config.num_audio_tokens, config.d_model)
+                for _ in range(config.num_quantizers)
             ]
         )
-        self.tokens_position_emb = PositionalEncoding(hparams.d_model)
-        self.audio_position_emb = PositionalEncoding(hparams.d_model)
+        self.tokens_position_emb = PositionalEncoding(config.d_model)
+        self.audio_position_emb = PositionalEncoding(config.d_model)
         self.stage_embs = nn.ModuleList(
-            [TokenEmbedding(1, hparams.d_model) for _ in range(hparams.num_quantizers - 1)]
+            [TokenEmbedding(1, config.d_model) for _ in range(config.num_quantizers - 1)]
         )
 
         # Decoder
-        self.transformer = Transformer(hparams)
+        self.transformer = Transformer(config)
 
         # Project to output
         self.proj_layers = nn.ModuleList(
             [
-                nn.Linear(hparams.d_model, hparams.num_audio_tokens, bias=False)
-                for _ in range(hparams.num_quantizers - 1)
+                nn.Linear(config.d_model, config.num_audio_tokens, bias=False)
+                for _ in range(config.num_quantizers - 1)
             ]
         )
 

@@ -5,7 +5,7 @@ from typing import Literal
 
 
 @dataclass
-class ValleHparams:
+class ConfigValle:
     # Dataset
     dataset: str = field(default='theodorr/ljspeech', metadata={'help': 'Hugging Face dataset'})
 

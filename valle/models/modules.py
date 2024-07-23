@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from ..hparams import ValleHparams
+from ..config import ConfigValle
 
 
 class TokenEmbedding(nn.Module):
@@ -224,17 +224,17 @@ class FeedForward(nn.Module):
 class EncoderLayer(nn.Module):
     """Encoder Layer"""
 
-    def __init__(self, hparams: ValleHparams) -> None:
+    def __init__(self, config: ConfigValle) -> None:
         super().__init__()
-        self.hparams = hparams
-        self.self_attn = MultiHeadAttention(hparams.d_model, hparams.n_heads)
+        self.config = config
+        self.self_attn = MultiHeadAttention(config.d_model, config.n_heads)
         self.ffn = FeedForward(
-            self.hparams.d_model, self.hparams.dim_feedforward, dropout=self.hparams.dropout
+            self.config.d_model, self.config.dim_feedforward, dropout=self.config.dropout
         )
-        self.norm1 = self._get_norm()(self.hparams.d_model)
-        self.norm2 = self._get_norm()(self.hparams.d_model)
-        self.dropout1 = nn.Dropout(self.hparams.dropout)
-        self.dropout2 = nn.Dropout(self.hparams.dropout)
+        self.norm1 = self._get_norm()(self.config.d_model)
+        self.norm2 = self._get_norm()(self.config.d_model)
+        self.dropout1 = nn.Dropout(self.config.dropout)
+        self.dropout2 = nn.Dropout(self.config.dropout)
         self.activation = self._get_activation()()
 
     def forward(
@@ -266,7 +266,7 @@ class EncoderLayer(nn.Module):
             kv: Tuple of key-value cache tensors of shape \
                 ``(batch_size, n_heads, seq_len, d_model)``
         """
-        norm_opt = {} if self.hparams.norm == 'LayerNorm' else {'embedding': embedding}
+        norm_opt = {} if self.config.norm == 'LayerNorm' else {'embedding': embedding}
         x_attn, next_kv_cache = self.self_attn(
             self.norm1(x, **norm_opt),
             attn_mask=attn_mask,
@@ -284,20 +284,20 @@ class EncoderLayer(nn.Module):
             'LayerNorm': nn.LayerNorm,
             'AdaptiveLayerNorm': AdaptiveLayerNorm,
         }
-        return norm_dict[self.hparams.norm]
+        return norm_dict[self.config.norm]
 
     def _get_activation(self):
         activation_dict = {
             'relu': nn.ReLU,
             'gelu': nn.GELU,
         }
-        return activation_dict[self.hparams.activation]
+        return activation_dict[self.config.activation]
 
 
 class Transformer(nn.Module):
     """Transformer Encoder"""
 
-    def __init__(self, hparams: ValleHparams) -> None:
+    def __init__(self, hparams: ConfigValle) -> None:
         super().__init__()
         self.hparams = hparams
         self.layers = nn.ModuleList([EncoderLayer(hparams) for _ in range(self.hparams.num_layers)])

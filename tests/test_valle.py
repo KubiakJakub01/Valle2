@@ -1,12 +1,12 @@
 import torch
 
-from valle.hparams import ValleHparams
+from valle.config import ConfigValle
 from valle.models import ValleAR
 
 
 def test_valle_ar():
-    hparams = ValleHparams(norm='LayerNorm')
-    model = ValleAR(hparams)
+    config = ConfigValle(norm='LayerNorm')
+    model = ValleAR(config)
     tokens_list = [torch.randint(0, 256, (10,)) for _ in range(4)]
     codes_list = [torch.randint(0, 256, (10,)) for _ in range(4)]
     loss = model(tokens_list, codes_list)
