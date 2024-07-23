@@ -32,7 +32,7 @@ def train(hparams_fp: Path, model_name: str):
         accumulate_grad_batches=config.grad_accum,
         logger=logger,
     )
-    trainer.fit(model, train_dataloader, ckpt_path=config.ckpt_path)
+    trainer.fit(model, train_dataloader)
 
 
 if __name__ == '__main__':

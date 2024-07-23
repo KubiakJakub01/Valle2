@@ -8,6 +8,9 @@ import torch
 import torchaudio
 from torch import Tensor
 
+# Set pytorch precision
+torch.set_float32_matmul_precision('high')
+
 # Set up logging
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
