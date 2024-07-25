@@ -78,6 +78,14 @@ class ConfigValle:
     def quantization_factor(self):
         return self.sampling_rate // self.polling_factor
 
+    @property
+    def bos_token(self):
+        return len(self.vocab_size)
+
+    @property
+    def eos_token(self):
+        return len(self.vocab_size) + 1
+
     @classmethod
     def from_dict(cls, hparams_dict):
         return cls(**hparams_dict)
