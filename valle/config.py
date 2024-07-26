@@ -6,8 +6,9 @@ from typing import Literal
 
 @dataclass
 class ConfigValle:
-    # Dataset
+    # Data
     dataset: str = field(default='theodorr/ljspeech', metadata={'help': 'Hugging Face dataset'})
+    num_workers: int = field(default=4, metadata={'help': 'Number of workers'})
 
     # Input features
     vocab_size: int = field(default=256, metadata={'help': 'Vocab size'})
@@ -80,11 +81,11 @@ class ConfigValle:
 
     @property
     def bos_token(self):
-        return len(self.vocab_size)
+        return self.num_audio_tokens
 
     @property
     def eos_token(self):
-        return len(self.vocab_size) + 1
+        return self.num_audio_tokens + 1
 
     @classmethod
     def from_dict(cls, hparams_dict):
