@@ -42,6 +42,7 @@ def get_dataloaders(model_name: str, config: ConfigValle, split: Literal['train'
     dataloader = DataLoader(
         valle_dataset,
         batch_size=config.batch_size,
+        num_workers=config.num_workers,
         collate_fn=get_collate(model_name)(config),
         shuffle=split == 'train',
     )

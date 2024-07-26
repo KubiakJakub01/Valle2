@@ -19,7 +19,7 @@ def train(hparams_fp: Path, model_name: str):
     log_info('Training model %s with hparams: ', model_name, config)
 
     # Load data
-    train_dataloader = get_dataloaders(config, 'train')
+    train_dataloader = get_dataloaders(model_name, config, 'train')
 
     # Logger
     logger = loggers.TensorBoardLogger(config.log_path, name=model_name)

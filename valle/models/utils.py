@@ -5,7 +5,7 @@ from torch import Tensor
 from transformers.generation.utils import top_k_top_p_filtering
 
 
-def create_pad_mask(lens: Tensor, device: torch.device) -> Tensor:
+def build_pad_mask(lens: Tensor, device: torch.device) -> Tensor:
     """0 is valid region and 1 is masked region."""
     max_len = lens.max()
     mask = repeat(torch.arange(max_len, device=device), 'b -> l b', l=len(lens)) >= rearrange(

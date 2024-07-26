@@ -9,7 +9,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from ..config import ConfigValle
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
-from .utils import create_pad_mask
+from .utils import build_pad_mask
 
 
 class ValleNAR(nn.Module):
@@ -82,7 +82,7 @@ class ValleNAR(nn.Module):
 
         # Prepare mask
         codes_pad_mask = F.pad(
-            create_pad_mask(codes_lens, self.device),
+            build_pad_mask(codes_lens, self.device),
             (tokens_len, 0),
             value=False,
         )  # [tokens_len, codes_len]

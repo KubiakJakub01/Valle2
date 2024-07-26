@@ -8,7 +8,7 @@ from torch import optim
 from ..config import ConfigValle
 from ..utils import to_device
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
-from .utils import build_attn_mask, create_pad_mask, get_best_beam, topk_sampling
+from .utils import build_attn_mask, build_pad_mask, get_best_beam, topk_sampling
 
 
 class ValleAR(L.LightningModule):
@@ -67,7 +67,7 @@ class ValleAR(L.LightningModule):
 
         # Decoder
         padding_mask = F.pad(
-            create_pad_mask(codes_lens, self.device),
+            build_pad_mask(codes_lens, self.device),
             (max(tokens_lens), 0),
             value=False,
         )

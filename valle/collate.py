@@ -10,7 +10,7 @@ from .config import ConfigValle
 
 def get_collate(model_name: str):
     collate_dict = {
-        'valle_ar': ValleARCollate,
+        'ValleAR': ValleARCollate,
     }
     return collate_dict[model_name]
 
@@ -24,20 +24,20 @@ class ValleARCollate:
         targets_list = []
         tokens_list = []
         for item in batch:
-            codes_ = item['codes']
+            codes_ = item['codes'][0]  # Only first layer
             codes = F.pad(codes_, (1, 0), value=self.config.bos_token)
-            targets = F.pad(codes_, (0, 1), value=self.config.eos_token)
+            target = F.pad(codes_, (0, 1), value=self.config.eos_token)
             codes_list.append(codes)
-            targets_list.append(targets)
+            targets_list.append(target)
             tokens_list.append(item['tokens'])
         codes, codes_lens = collate_list(codes_list)
-        targets, _ = collate_list(targets_list)
+        target, _ = collate_list(targets_list)
         tokens, tokens_lens = collate_list(tokens_list)
-        assert codes_lens > tokens_lens, 'Codes length must be greater than tokens length.'
+        assert (codes_lens > tokens_lens).all(), 'Codes length must be greater than tokens length.'
         return {
             'codes': codes,
             'codes_lens': codes_lens,
-            'targets': targets,
+            'target': target,
             'tokens': tokens,
             'tokens_lens': tokens_lens,
         }

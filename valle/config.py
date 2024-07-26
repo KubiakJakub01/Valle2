@@ -27,7 +27,7 @@ class ConfigValle:
     activation: Literal['relu', 'gelu'] = field(
         default='relu', metadata={'help': 'Activation function'}
     )
-    num_layers: int = field(default=6, metadata={'help': 'Number of layers'})
+    num_layers: int = field(default=8, metadata={'help': 'Number of layers'})
     norm: Literal['AdaptiveLayerNorm', 'LayerNorm'] = field(
         default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
     )
