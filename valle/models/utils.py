@@ -1,14 +1,17 @@
 import torch
 import torch.nn.functional as F
-from einops import rearrange
+from einops import rearrange, repeat
+from torch import Tensor
 from transformers.generation.utils import top_k_top_p_filtering
 
 
-def create_pad_mask(x_len_list, device):
+def create_pad_mask(lens: Tensor, device: torch.device) -> Tensor:
     """0 is valid region and 1 is masked region."""
-    seq = rearrange(torch.arange(max(x_len_list), device=device), 't -> 1 t')
-    stop = rearrange(torch.tensor(x_len_list, device=device), 'b -> b 1')
-    return (seq >= stop).bool()
+    max_len = lens.max()
+    mask = repeat(torch.arange(max_len, device=device), 'b -> l b', l=len(lens)) >= rearrange(
+        lens, 'b -> b 1'
+    )
+    return mask
 
 
 def build_attn_mask(x_len: int, y_len: int, device: torch.device) -> torch.Tensor:
