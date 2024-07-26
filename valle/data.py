@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 from typing import Literal
 
 import torch
+import torch.nn.functional as F
 from datasets import load_dataset
 from einops import rearrange
 from torch import Tensor
@@ -35,6 +37,34 @@ class ValleDataset(Dataset):
         codes = self.encodec_pip.encode(audio)
 
         return {'codes': codes, 'tokens': tokens}
+
+
+@dataclass
+class ValleARCollate:
+    config: ConfigValle
+
+    def __call__(self, batch: list[dict[str, Tensor]]) -> dict[str, Tensor]:
+        codes_list = []
+        targets_list = []
+        tokens_list = []
+        for item in batch:
+            codes_ = item['codes']
+            codes = F.pad(codes_, (1, 0), value=self.config.bos_token)
+            targets = F.pad(codes_, (0, 1), value=self.config.eos_token)
+            codes_list.append(codes)
+            targets_list.append(targets)
+            tokens_list.append(item['tokens'])
+        codes, codes_lens = collate_list(codes_list)
+        targets, _ = collate_list(targets_list)
+        tokens, tokens_lens = collate_list(tokens_list)
+        assert codes_lens > tokens_lens, 'Codes length must be greater than tokens length.'
+        return {
+            'codes': codes,
+            'codes_lens': codes_lens,
+            'targets': targets,
+            'tokens': tokens,
+            'tokens_lens': tokens_lens,
+        }
 
 
 def get_dataloaders(hparams: ConfigValle, split: Literal['train', 'val']):
