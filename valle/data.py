@@ -1,14 +1,11 @@
-from dataclasses import dataclass
 from typing import Literal
 
 import torch
-import torch.nn.functional as F
 from datasets import load_dataset
 from einops import rearrange
-from torch import Tensor
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
+from .collate import get_collate
 from .config import ConfigValle
 from .models import EncodecPip
 from .utils import normalize_audio
@@ -39,42 +36,13 @@ class ValleDataset(Dataset):
         return {'codes': codes, 'tokens': tokens}
 
 
-@dataclass
-class ValleARCollate:
-    config: ConfigValle
-
-    def __call__(self, batch: list[dict[str, Tensor]]) -> dict[str, Tensor]:
-        codes_list = []
-        targets_list = []
-        tokens_list = []
-        for item in batch:
-            codes_ = item['codes']
-            codes = F.pad(codes_, (1, 0), value=self.config.bos_token)
-            targets = F.pad(codes_, (0, 1), value=self.config.eos_token)
-            codes_list.append(codes)
-            targets_list.append(targets)
-            tokens_list.append(item['tokens'])
-        codes, codes_lens = collate_list(codes_list)
-        targets, _ = collate_list(targets_list)
-        tokens, tokens_lens = collate_list(tokens_list)
-        assert codes_lens > tokens_lens, 'Codes length must be greater than tokens length.'
-        return {
-            'codes': codes,
-            'codes_lens': codes_lens,
-            'targets': targets,
-            'tokens': tokens,
-            'tokens_lens': tokens_lens,
-        }
-
-
-def get_dataloaders(hparams: ConfigValle, split: Literal['train', 'val']):
-    dataset = load_dataset(hparams.dataset, split=split)
-    valle_dataset = ValleDataset(dataset, hparams)
-    dataloader = DataLoader(valle_dataset, batch_size=hparams.batch_size, shuffle=True)
+def get_dataloaders(model_name: str, config: ConfigValle, split: Literal['train', 'val']):
+    dataset = load_dataset(config.dataset, split=split)
+    valle_dataset = ValleDataset(dataset, config)
+    dataloader = DataLoader(
+        valle_dataset,
+        batch_size=config.batch_size,
+        collate_fn=get_collate(model_name)(config),
+        shuffle=split == 'train',
+    )
     return dataloader
-
-
-def collate_list(x_list: list[Tensor]) -> tuple[Tensor, Tensor]:
-    x_lens = torch.tensor(list(map(len, x_list)), dtype=torch.int64)
-    x = pad_sequence(x_list, batch_first=True)
-    return x, x_lens

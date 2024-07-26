@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from torch import optim
-from torch.nn.utils.rnn import pad_sequence
 
 from ..config import ConfigValle
 from ..utils import to_device
@@ -46,50 +45,39 @@ class ValleAR(L.LightningModule):
 
         Args:
             batch: Batch data
-            batch_idx: Batch index
 
         Returns:
             loss: Loss value
         """
         # pylint: disable=arguments-differ
         batch = to_device(batch, self.device)
-        tokens_list = batch['tokens']
-        codes_list = batch['codes']
-
-        assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
+        codes = batch['codes']
+        codes_lens = batch['codes_lens']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+        target = batch['target']
 
         # Prepare tokens
-        tokens_lens = list(map(len, tokens_list))
-        tokens_len = max(tokens_lens)
-        tokens = pad_sequence(tokens_list, batch_first=True)
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
 
         # Prepare audio
-        codes_lens = [x + 1 for x in map(len, codes_list)]
-        codes_len = max(codes_lens)
-        target = pad_sequence(
-            [F.pad(codes, (0, 1), value=self.eos_token) for codes in codes_list], batch_first=True
-        )
-        codes = pad_sequence(
-            [F.pad(codes, (1, 0), value=self.bos_token) for codes in codes_list], batch_first=True
-        )
         codes = self.audio_emb(codes)  # (b t c)
         codes = self.audio_position_emb(codes)
 
         # Decoder
         padding_mask = F.pad(
             create_pad_mask(codes_lens, self.device),
-            (tokens_len, 0),
+            (max(tokens_lens), 0),
             value=False,
         )
-        attn_mask = build_attn_mask(tokens_len, codes_len, self.device)
+        attn_mask = build_attn_mask(max(tokens_lens), max(codes_lens), self.device)
         transformer_output, *_ = self.transformer(
             torch.cat((tokens, codes), dim=1),
             padding_mask=padding_mask,
             attn_mask=attn_mask,
         )
-        transformer_output = transformer_output[:, tokens_len:]
+        transformer_output = transformer_output[:, max(tokens_lens) :]
 
         # Project to output
         logits = rearrange(self.proj(transformer_output), 'b t c -> b c t')
