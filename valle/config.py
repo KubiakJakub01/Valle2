@@ -81,11 +81,11 @@ class ConfigValle:
 
     @property
     def bos_token(self):
-        return self.num_audio_tokens
+        return self.num_audio_tokens + 1
 
     @property
     def eos_token(self):
-        return self.num_audio_tokens + 1
+        return self.num_audio_tokens
 
     @classmethod
     def from_dict(cls, hparams_dict):
