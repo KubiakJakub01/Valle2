@@ -1,5 +1,6 @@
 import random
 
+import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,10 +13,10 @@ from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import build_pad_mask
 
 
-class ValleNAR(nn.Module):
+class ValleNAR(L.LightningModule):
     def __init__(self, config: ConfigValle):
         super().__init__()
-        self.hparams = config
+        self.config = config
 
         self.eos_token = config.num_audio_tokens
         self.bos_token = config.num_audio_tokens + 1
@@ -49,18 +50,18 @@ class ValleNAR(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(
-        self, tokens_list: list[torch.Tensor], codes_list: list[torch.Tensor]
-    ) -> torch.Tensor:
-        """Forward pass of the model.
+    def training_step(self, batch) -> torch.Tensor:
+        """Forward pass.
 
         Args:
-            tokens_list: List of token sequences (tokens_len).
-            codes_list: List of audio codes (codes_len, quantization_layers).
+            batch: Batch data
 
         Returns:
-            loss: Loss value.
+            loss: Loss value
         """
+        # pylint: disable=arguments-differ
+        tokens_list = batch['tokens']
+        codes_list = batch['codes']
         assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
 
         # Prepare tokens
@@ -72,7 +73,7 @@ class ValleNAR(nn.Module):
 
         # Prepare prompt and target audio
         codes_lens = list(map(len, codes_list))
-        layer = random.randint(1, self.hparams.num_quantizers - 1)
+        layer = random.randint(1, self.config.num_quantizers - 1)
         codes = pad_sequence(codes_list, batch_first=True)
         codes, prefix_len = self._prepare_audio_codes(codes, layer)
         codes = self.audio_position_emb(codes)
@@ -157,7 +158,7 @@ class ValleNAR(nn.Module):
             logits = self.proj_layers[n_layer - 1](transformer_output[:, tokens_len + prompt_len :])
 
             # Sampling
-            sampled_tokens = Categorical(logits=logits / self.hparams.temperature).sample()
+            sampled_tokens = Categorical(logits=logits / self.config.temperature).sample()
 
             # Update output codes
             output_codes = torch.cat([output_codes, sampled_tokens], dim=0)
@@ -176,10 +177,10 @@ class ValleNAR(nn.Module):
         """
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
-        prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
+        prefix_len = min(codes_len // 3, 3 * self.config.quantization_factor)
         prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
         emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
-        for j in range(1, self.hparams.num_quantizers):
+        for j in range(1, self.config.num_quantizers):
             prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
                 emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])
