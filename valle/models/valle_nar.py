@@ -6,9 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from torch.distributions import Categorical
-from torch.nn.utils.rnn import pad_sequence
 
 from ..config import ConfigValle
+from ..utils import to_device
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import build_pad_mask
 
@@ -60,21 +60,19 @@ class ValleNAR(L.LightningModule):
             loss: Loss value
         """
         # pylint: disable=arguments-differ
-        tokens_list = batch['tokens']
-        codes_list = batch['codes']
-        assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
+        batch = to_device(batch, self.device)
+        codes = batch['codes']
+        codes_lens = batch['codes_lens']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+        target = batch['target']
 
         # Prepare tokens
-        tokens_lens = list(map(len, tokens_list))
-        tokens_len = max(tokens_lens)
-        tokens = pad_sequence(tokens_list, batch_first=True)
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
 
         # Prepare prompt and target audio
-        codes_lens = list(map(len, codes_list))
         layer = random.randint(1, self.config.num_quantizers - 1)
-        codes = pad_sequence(codes_list, batch_first=True)
         codes, prefix_len = self._prepare_audio_codes(codes, layer)
         codes = self.audio_position_emb(codes)
 
@@ -84,7 +82,7 @@ class ValleNAR(L.LightningModule):
         # Prepare mask
         codes_pad_mask = F.pad(
             build_pad_mask(codes_lens, self.device),
-            (tokens_len, 0),
+            (tokens_lens.max(), 0),
             value=False,
         )  # [tokens_len, codes_len]
 
@@ -95,7 +93,7 @@ class ValleNAR(L.LightningModule):
         z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, tokens_len + prefix_len]
+        z = z[:, tokens_lens.max() + prefix_len]
 
         # Project to output
         logits = self.proj_layers[layer - 1](z)
