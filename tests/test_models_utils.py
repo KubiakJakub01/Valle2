@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from valle.models.utils import build_attn_mask, create_pad_mask
+from valle.models.utils import build_attn_mask, build_pad_mask
 
 
 @pytest.mark.parametrize(
@@ -35,17 +35,17 @@ def test_build_attn_mask(x_len: int, y_len: int, expected_mask: torch.Tensor):
 
 
 @pytest.mark.parametrize(
-    'x_len_list, expected_mask',
+    'lens, expected_mask',
     [
         (
-            [5, 5, 5, 5],
+            torch.tensor([5, 5, 5, 5]),
             torch.tensor(
                 [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
                 dtype=torch.bool,
             ),
         ),
         (
-            [5, 4, 3, 2],
+            torch.tensor([5, 4, 3, 2]),
             torch.tensor(
                 [[0, 0, 0, 0, 0], [0, 0, 0, 0, 1], [0, 0, 0, 1, 1], [0, 0, 1, 1, 1]],
                 dtype=torch.bool,
@@ -53,7 +53,7 @@ def test_build_attn_mask(x_len: int, y_len: int, expected_mask: torch.Tensor):
         ),
     ],
 )
-def test_create_pad_mask(x_len_list, expected_mask):
-    mask = create_pad_mask(x_len_list, device='cpu')
+def test_build_pad_mask(lens, expected_mask):
+    mask = build_pad_mask(lens, device='cpu')
     assert mask.shape == expected_mask.shape
     assert torch.equal(mask, expected_mask)

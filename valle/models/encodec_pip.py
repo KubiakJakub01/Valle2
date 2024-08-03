@@ -15,6 +15,11 @@ class EncodecPip:
         self.model = EncodecModel.encodec_model_24khz()
         self.model.set_target_bandwidth(6.0)
 
+    @property
+    def sampling_rate(self) -> int:
+        """Return sampling rate."""
+        return self.model.sample_rate
+
     @torch.inference_mode()
     def encode(self, audio: torch.Tensor) -> torch.Tensor:
         """Encode audio into codes.

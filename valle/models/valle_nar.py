@@ -1,47 +1,48 @@
 import random
 
+import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from torch.distributions import Categorical
-from torch.nn.utils.rnn import pad_sequence
 
-from ..hparams import ValleHparams
+from ..config import ConfigValle
+from ..utils import to_device
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
-from .utils import create_pad_mask
+from .utils import build_pad_mask
 
 
-class ValleNAR(nn.Module):
-    def __init__(self, hparams: ValleHparams):
+class ValleNAR(L.LightningModule):
+    def __init__(self, config: ConfigValle):
         super().__init__()
-        self.hparams = hparams
+        self.config = config
 
-        self.eos_token = hparams.num_audio_tokens
-        self.bos_token = hparams.num_audio_tokens + 1
+        self.eos_token = config.num_audio_tokens
+        self.bos_token = config.num_audio_tokens + 1
 
         # Embeddings
-        self.tokens_emb = TokenEmbedding(hparams.vocab_size, hparams.d_model)
+        self.tokens_emb = TokenEmbedding(config.vocab_size, config.d_model)
         self.codes_embs = nn.ModuleList(
             [
-                TokenEmbedding(hparams.num_audio_tokens, hparams.d_model)
-                for _ in range(hparams.num_quantizers)
+                TokenEmbedding(config.num_audio_tokens, config.d_model)
+                for _ in range(config.num_quantizers)
             ]
         )
-        self.tokens_position_emb = PositionalEncoding(hparams.d_model)
-        self.audio_position_emb = PositionalEncoding(hparams.d_model)
+        self.tokens_position_emb = PositionalEncoding(config.d_model)
+        self.audio_position_emb = PositionalEncoding(config.d_model)
         self.stage_embs = nn.ModuleList(
-            [TokenEmbedding(1, hparams.d_model) for _ in range(hparams.num_quantizers - 1)]
+            [TokenEmbedding(1, config.d_model) for _ in range(config.num_quantizers - 1)]
         )
 
         # Decoder
-        self.transformer = Transformer(hparams)
+        self.transformer = Transformer(config)
 
         # Project to output
         self.proj_layers = nn.ModuleList(
             [
-                nn.Linear(hparams.d_model, hparams.num_audio_tokens, bias=False)
-                for _ in range(hparams.num_quantizers - 1)
+                nn.Linear(config.d_model, config.num_audio_tokens, bias=False)
+                for _ in range(config.num_quantizers - 1)
             ]
         )
 
@@ -49,31 +50,29 @@ class ValleNAR(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    def forward(
-        self, tokens_list: list[torch.Tensor], codes_list: list[torch.Tensor]
-    ) -> torch.Tensor:
-        """Forward pass of the model.
+    def training_step(self, batch) -> torch.Tensor:
+        """Forward pass.
 
         Args:
-            tokens_list: List of token sequences (tokens_len).
-            codes_list: List of audio codes (codes_len, quantization_layers).
+            batch: Batch data
 
         Returns:
-            loss: Loss value.
+            loss: Loss value
         """
-        assert len(tokens_list) == len(codes_list), 'Batch size mismatch.'
+        # pylint: disable=arguments-differ
+        batch = to_device(batch, self.device)
+        codes = batch['codes']
+        codes_lens = batch['codes_lens']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+        target = batch['target']
 
         # Prepare tokens
-        tokens_lens = list(map(len, tokens_list))
-        tokens_len = max(tokens_lens)
-        tokens = pad_sequence(tokens_list, batch_first=True)
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
 
         # Prepare prompt and target audio
-        codes_lens = list(map(len, codes_list))
-        layer = random.randint(1, self.hparams.num_quantizers - 1)
-        codes = pad_sequence(codes_list, batch_first=True)
+        layer = random.randint(1, self.config.num_quantizers - 1)
         codes, prefix_len = self._prepare_audio_codes(codes, layer)
         codes = self.audio_position_emb(codes)
 
@@ -82,8 +81,8 @@ class ValleNAR(nn.Module):
 
         # Prepare mask
         codes_pad_mask = F.pad(
-            create_pad_mask(codes_lens, self.device),
-            (tokens_len, 0),
+            build_pad_mask(codes_lens, self.device),
+            (tokens_lens.max(), 0),
             value=False,
         )  # [tokens_len, codes_len]
 
@@ -94,7 +93,7 @@ class ValleNAR(nn.Module):
         z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, tokens_len + prefix_len]
+        z = z[:, tokens_lens.max() + prefix_len]
 
         # Project to output
         logits = self.proj_layers[layer - 1](z)
@@ -157,7 +156,7 @@ class ValleNAR(nn.Module):
             logits = self.proj_layers[n_layer - 1](transformer_output[:, tokens_len + prompt_len :])
 
             # Sampling
-            sampled_tokens = Categorical(logits=logits / self.hparams.temperature).sample()
+            sampled_tokens = Categorical(logits=logits / self.config.temperature).sample()
 
             # Update output codes
             output_codes = torch.cat([output_codes, sampled_tokens], dim=0)
@@ -176,10 +175,10 @@ class ValleNAR(nn.Module):
         """
         # Cut 3 seconds of audio or 1/3 of the audio
         codes_len = codes.shape[-1]
-        prefix_len = min(codes_len // 3, 3 * self.hparams.quantization_factor)
+        prefix_len = min(codes_len // 3, 3 * self.config.quantization_factor)
         prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
         emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
-        for j in range(1, self.hparams.num_quantizers):
+        for j in range(1, self.config.num_quantizers):
             prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
                 emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])

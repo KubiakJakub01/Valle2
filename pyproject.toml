@@ -23,6 +23,9 @@ sox = "^1.5.0"
 librosa = "^0.10.2.post1"
 encodec = "^0.1.1"
 transformers = "4.38.2"
+lightning = "^2.3.3"
+datasets = "^2.20.0"
+tensorboard = "^2.17.0"
 
 [[tool.poetry.source]]
 name = "torch"
