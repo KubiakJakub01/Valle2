@@ -11,6 +11,7 @@ from .config import ConfigValle
 def get_collate(model_name: str):
     collate_dict = {
         'ValleAR': ValleARCollate,
+        'ValleNAR': ValleNARCollate,
     }
     return collate_dict[model_name]
 
