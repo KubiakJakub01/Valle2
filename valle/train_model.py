@@ -37,8 +37,8 @@ def train(hparams_fp: Path, model_name: str):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hparams', type=Path, required=True)
-    parser.add_argument('--model', type=str, choices=['ValleAR', 'ValleNAR'], required=True)
+    parser.add_argument('-c', '--config', type=Path, required=True)
+    parser.add_argument('-m', '--model', type=str, choices=['ValleAR', 'ValleNAR'], required=True)
     args = parser.parse_args()
 
     train(args.hparams, args.model)
