@@ -50,7 +50,7 @@ class ValleNAR(L.LightningModule):
     def device(self):
         return next(self.parameters()).device
 
-    def training_step(self, batch) -> torch.Tensor:
+    def training_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
         """Forward pass.
 
         Args:
