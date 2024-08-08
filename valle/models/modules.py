@@ -350,3 +350,11 @@ class Transformer(nn.Module):
             if use_cache:
                 new_kv = new_kv + (next_kv_cache,)
         return x, new_kv
+
+
+class SummaryMixin(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        pass
