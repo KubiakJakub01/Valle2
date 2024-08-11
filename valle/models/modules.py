@@ -353,8 +353,31 @@ class Transformer(nn.Module):
 
 
 class SummaryMixin(nn.Module):
-    def __init__(self):
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        local_proj_hidden_dim: int,
+        local_proj_out_dim: int,
+        summary_hidden_dim: int,
+        summary_out_dim: int,
+        activation: str,
+    ):
         super().__init__()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.local_proj_hid_dim = local_proj_hidden_dim
+        self.local_proj_out_dim = local_proj_out_dim
+        self.summary_hid_dim = summary_hidden_dim
+        self.summary_out_dim = summary_out_dim
+        self.activation = self._get_activation(activation)()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
+
+    def _get_activation(self, activation: str):
+        activation_dict = {
+            'relu': nn.ReLU,
+            'gelu': nn.GELU,
+        }
+        return activation_dict[activation]
