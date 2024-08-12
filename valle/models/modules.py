@@ -372,6 +372,14 @@ class SummaryMixin(nn.Module):
         self.summary_out_dim = summary_out_dim
         self.activation = self._get_activation(activation)()
 
+        self.local_proj = FeedForward(d_model, local_proj_hidden_dim)
+        self.summary_local_merging = nn.Linear(local_proj_hidden_dim, summary_hidden_dim)
+
+        self.local_norm = nn.LayerNorm(d_model)
+        self.summary_norm = nn.LayerNorm(summary_hidden_dim)
+
+        self.summary_proj = FeedForward(summary_hidden_dim, summary_out_dim)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
 
