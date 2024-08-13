@@ -380,8 +380,18 @@ class SummaryMixin(nn.Module):
 
         self.summary_proj = FeedForward(summary_hidden_dim, summary_out_dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        pass
+    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+        """Summary Forward Pass
+
+        Args:
+            x: Input tensor of shape ``(batch_size, seq_len, d_model)``
+            mask: Padding mask tensor of shape ``(batch_size, seq_len)``
+        """
+        B, T, _ = x.shape
+        if mask is not None:
+            mask = rearrange(torch.logical_not(mask), 'b t -> b t 1').float()
+        else:
+            mask = torch.ones(B, T, 1).float()
 
     def _get_activation(self, activation: str):
         activation_dict = {
