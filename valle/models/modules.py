@@ -393,6 +393,20 @@ class SummaryMixin(nn.Module):
         else:
             mask = torch.ones(B, T, 1).float()
 
+    def _forward_mixing(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        _, T, _ = x.shape
+
+        # Local Projection
+        local_summary = self.local_norm(self.local_proj(x) * mask)
+
+        # Time summary
+        time_summary = self.summary_proj(x) * mask
+        time_summary = self.summary_norm(torch.sum(time_summary, dim=1) / torch.sum(mask, dim=1))
+        time_summary = repeat(time_summary, 'b c -> b t c', t=T)
+
+        # Combine local and time summary
+        return self.summary_local_merging(torch.cat([local_summary, time_summary], dim=-1))
+
     def _get_activation(self, activation: str):
         activation_dict = {
             'relu': nn.ReLU,
