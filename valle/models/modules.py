@@ -362,6 +362,7 @@ class SummaryMixin(nn.Module):
         summary_hidden_dim: int,
         summary_out_dim: int,
         activation: str,
+        mode: str,
     ):
         super().__init__()
         self.d_model = d_model
@@ -371,6 +372,7 @@ class SummaryMixin(nn.Module):
         self.summary_hid_dim = summary_hidden_dim
         self.summary_out_dim = summary_out_dim
         self.activation = self._get_activation(activation)()
+        self.mode = mode
 
         self.local_proj = FeedForward(d_model, local_proj_hidden_dim)
         self.summary_local_merging = nn.Linear(local_proj_hidden_dim, summary_hidden_dim)
@@ -392,6 +394,10 @@ class SummaryMixin(nn.Module):
             mask = rearrange(torch.logical_not(mask), 'b t -> b t 1').float()
         else:
             mask = torch.ones(B, T, 1).float()
+
+        if self.mode == 'mixing':
+            return self._forward_mixing(x, mask)
+        return self._forward_avgonly(x, mask)
 
     def _forward_mixing(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         _, T, _ = x.shape
