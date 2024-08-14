@@ -407,6 +407,14 @@ class SummaryMixin(nn.Module):
         # Combine local and time summary
         return self.summary_local_merging(torch.cat([local_summary, time_summary], dim=-1))
 
+    def _forward_avgonly(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        _, T, _ = x.shape
+
+        time_summary = self.summary_proj(x) * mask
+        time_summary = torch.sum(time_summary, dim=1) / torch.sum(mask, dim=1)
+        time_summary = repeat(time_summary, 'b c -> b t c', t=T)
+        return time_summary
+
     def _get_activation(self, activation: str):
         activation_dict = {
             'relu': nn.ReLU,
