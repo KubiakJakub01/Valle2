@@ -352,14 +352,14 @@ class Transformer(nn.Module):
         return x, new_kv
 
 
-class SummaryMixin(nn.Module):
+class SummaryMixing(nn.Module):
     def __init__(
         self,
         d_model: int,
         n_heads: int,
-        local_proj_hidden_dim: int,
+        local_proj_hid_dim: int,
         local_proj_out_dim: int,
-        summary_hidden_dim: int,
+        summary_hid_dim: int,
         summary_out_dim: int,
         activation: str,
         mode: str,
@@ -367,20 +367,28 @@ class SummaryMixin(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
-        self.local_proj_hid_dim = local_proj_hidden_dim
+        self.local_proj_hid_dim = local_proj_hid_dim
         self.local_proj_out_dim = local_proj_out_dim
-        self.summary_hid_dim = summary_hidden_dim
+        self.summary_hid_dim = summary_hid_dim
         self.summary_out_dim = summary_out_dim
         self.activation = self._get_activation(activation)()
         self.mode = mode
 
-        self.local_proj = FeedForward(d_model, local_proj_hidden_dim)
-        self.summary_local_merging = nn.Linear(local_proj_hidden_dim, summary_hidden_dim)
+        self.local_proj = nn.Sequential(
+            nn.Linear(self.d_model, self.local_proj_hid_dim),
+            self.activation,
+        )
+        self.summary_local_merging = nn.Linear(
+            self.summary_hid_dim + self.local_proj_hid_dim, self.summary_out_dim
+        )
 
-        self.local_norm = nn.LayerNorm(d_model)
-        self.summary_norm = nn.LayerNorm(summary_hidden_dim)
+        self.local_norm = nn.LayerNorm(self.local_proj_hid_dim)
+        self.summary_norm = nn.LayerNorm(self.summary_hid_dim)
 
-        self.summary_proj = FeedForward(summary_hidden_dim, summary_out_dim)
+        self.summary_proj = nn.Sequential(
+            nn.Linear(self.d_model, self.summary_hid_dim),
+            self.activation,
+        )
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
         """Summary Forward Pass
@@ -395,9 +403,12 @@ class SummaryMixin(nn.Module):
         else:
             mask = torch.ones(B, T, 1).float()
 
+        out = x
         if self.mode == 'mixing':
-            return self._forward_mixing(x, mask)
-        return self._forward_avgonly(x, mask)
+            out = self._forward_mixing(x, mask)
+        elif self.mode == 'avgonly':
+            out = self._forward_avgonly(x, mask)
+        return out
 
     def _forward_mixing(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         _, T, _ = x.shape
