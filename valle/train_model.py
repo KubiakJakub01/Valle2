@@ -19,7 +19,7 @@ def train(hparams_fp: Path, model_name: str):
     log_info('Training model %s with hparams: ', model_name, config)
 
     # Load data
-    train_dataloader = get_dataloaders(model_name, config, 'train')
+    train_dataloader, valid_dataloader = get_dataloaders(model_name, config)
 
     # Logger
     logger = loggers.TensorBoardLogger(config.log_path, name=model_name)
@@ -32,7 +32,7 @@ def train(hparams_fp: Path, model_name: str):
         accumulate_grad_batches=config.grad_accum,
         logger=logger,
     )
-    trainer.fit(model, train_dataloader)
+    trainer.fit(model, train_dataloader, valid_dataloader)
 
 
 if __name__ == '__main__':
