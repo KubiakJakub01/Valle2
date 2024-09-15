@@ -174,11 +174,11 @@ class ValleNAR(L.LightningModule):
             prefix_len: Length of the prompt audio.
         """
         # Cut 3 seconds of audio or 1/3 of the audio
-        codes_len = codes.shape[-1]
+        _, codes_len, quantization_layers = codes.shape
         prefix_len = min(codes_len // 3, 3 * self.config.quantization_factor)
         prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
         emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
-        for j in range(1, self.config.num_quantizers):
+        for j in range(1, quantization_layers):
             prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
                 emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])
