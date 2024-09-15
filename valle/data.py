@@ -1,5 +1,3 @@
-from typing import Literal
-
 import torch
 from datasets import load_dataset
 from einops import rearrange
@@ -45,14 +43,21 @@ class ValleDataset(Dataset):
         return {'codes': codes, 'tokens': tokens}
 
 
-def get_dataloaders(model_name: str, config: ConfigValle, split: Literal['train', 'val']):
-    dataset = load_dataset(config.dataset, split=split, trust_remote_code=True)
-    valle_dataset = ValleDataset(dataset, config)
-    dataloader = DataLoader(
-        valle_dataset,
+def get_dataloaders(model_name: str, config: ConfigValle) -> tuple[DataLoader, DataLoader]:
+    train_dataset = load_dataset(config.dataset, split='train[:90%]', trust_remote_code=True)
+    valid_dataset = load_dataset(config.dataset, split='train[90%:]', trust_remote_code=True)
+    train_dataloader = DataLoader(
+        ValleDataset(train_dataset, config),
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         collate_fn=get_collate(model_name)(config),
-        shuffle=split == 'train',
+        shuffle=True,
     )
-    return dataloader
+    valid_dataloader = DataLoader(
+        ValleDataset(valid_dataset, config),
+        batch_size=config.valid_batch_size,
+        num_workers=config.num_workers,
+        collate_fn=get_collate(model_name)(config),
+        shuffle=False,
+    )
+    return train_dataloader, valid_dataloader
