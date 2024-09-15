@@ -27,6 +27,7 @@ lightning = "^2.3.3"
 datasets = "^2.20.0"
 tensorboard = "^2.17.0"
 speechbrain = "^1.0.0"
+g2p-en = "^2.1.0"
 
 [[tool.poetry.source]]
 name = "torch"
