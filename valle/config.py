@@ -7,7 +7,7 @@ from typing import Literal
 @dataclass
 class ConfigValle:
     # Data
-    dataset: str = field(default='theodorr/ljspeech', metadata={'help': 'Hugging Face dataset'})
+    dataset: str = field(default='keithito/lj_speech', metadata={'help': 'Hugging Face dataset'})
     num_workers: int = field(default=4, metadata={'help': 'Number of workers'})
 
     # Input features
@@ -55,6 +55,7 @@ class ConfigValle:
     # Training
     seed: int = field(default=42, metadata={'help': 'Seed for reproducibility'})
     batch_size: int = field(default=4, metadata={'help': 'Batch size'})
+    valid_batch_size: int = field(default=1, metadata={'help': 'Validation batch size'})
     max_steps: int = field(default=1000, metadata={'help': 'Max steps'})
     log_every_n_steps: int = field(default=100, metadata={'help': 'Log every n steps'})
     ckpt_path: Path = field(
