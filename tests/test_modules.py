@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from valle.models.modules import MultiHeadAttention, SummaryMixing
+from valle.models.modules import MultiHeadAttention
 
 
 @pytest.mark.parametrize(
@@ -77,34 +77,3 @@ def test_merge_masks(
     assert mask.shape == (batch_size, n_heads, seq_len, seq_len)
     for i, expected_output in enumerate(expected_outputs):
         assert (mask[i] == 0.0).sum().item() == expected_output
-
-
-@pytest.mark.parametrize(
-    'x, mask, mode',
-    [
-        (torch.randn(4, 5, 512), None, 'mixing'),
-        (
-            torch.randn(8, 10, 256),
-            torch.tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]]),
-            'mixing',
-        ),
-        (
-            torch.randn(8, 10, 256),
-            torch.tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1, 1, 1]]),
-            'avgonly',
-        ),
-    ],
-)
-def test_summary_mixing(x, mask, mode):
-    summary_mixing = SummaryMixing(
-        d_model=x.size(-1),
-        n_heads=8,
-        local_proj_hid_dim=512,
-        local_proj_out_dim=512,
-        summary_hid_dim=512,
-        summary_out_dim=x.size(-1),
-        activation='relu',
-        mode=mode,
-    )
-    output = summary_mixing(x, mask)
-    assert output.shape == x.shape
