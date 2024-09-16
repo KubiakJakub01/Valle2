@@ -66,6 +66,7 @@ class ValleNAR(L.LightningModule):
         tokens = batch['tokens']
         tokens_lens = batch['tokens_lens']
         target = batch['target']
+        max_tokens_len = int(tokens_lens.max())
 
         # Prepare tokens
         tokens = self.tokens_emb(tokens)  # (b t c)
@@ -82,7 +83,7 @@ class ValleNAR(L.LightningModule):
         # Prepare mask
         codes_pad_mask = F.pad(
             build_pad_mask(codes_lens, self.device),
-            (tokens_lens.max(), 0),
+            (max_tokens_len, 0),
             value=False,
         )  # [tokens_len, codes_len]
 
@@ -93,7 +94,7 @@ class ValleNAR(L.LightningModule):
         z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, tokens_lens.max() + prefix_len]
+        z = z[:, max_tokens_len + prefix_len]
 
         # Project to output
         logits = self.proj_layers[layer - 1](z)
