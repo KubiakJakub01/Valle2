@@ -40,7 +40,7 @@ class ValleAR(L.LightningModule):
     def bos_token(self):
         return self.config.num_audio_tokens + 1
 
-    def training_step(self, batch) -> torch.Tensor:
+    def training_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
         """Forward pass.
 
         Args:

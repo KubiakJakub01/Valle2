@@ -50,7 +50,7 @@ class ValleNAR(L.LightningModule):
     def device(self):
         return next(self.parameters()).device
 
-    def training_step(self, batch) -> torch.Tensor:
+    def training_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
         """Forward pass.
 
         Args:
@@ -66,6 +66,7 @@ class ValleNAR(L.LightningModule):
         tokens = batch['tokens']
         tokens_lens = batch['tokens_lens']
         target = batch['target']
+        max_tokens_len = int(tokens_lens.max())
 
         # Prepare tokens
         tokens = self.tokens_emb(tokens)  # (b t c)
@@ -82,7 +83,7 @@ class ValleNAR(L.LightningModule):
         # Prepare mask
         codes_pad_mask = F.pad(
             build_pad_mask(codes_lens, self.device),
-            (tokens_lens.max(), 0),
+            (max_tokens_len, 0),
             value=False,
         )  # [tokens_len, codes_len]
 
@@ -93,7 +94,7 @@ class ValleNAR(L.LightningModule):
         z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, tokens_lens.max() + prefix_len]
+        z = z[:, max_tokens_len + prefix_len]
 
         # Project to output
         logits = self.proj_layers[layer - 1](z)
@@ -174,11 +175,11 @@ class ValleNAR(L.LightningModule):
             prefix_len: Length of the prompt audio.
         """
         # Cut 3 seconds of audio or 1/3 of the audio
-        codes_len = codes.shape[-1]
+        _, codes_len, quantization_layers = codes.shape
         prefix_len = min(codes_len // 3, 3 * self.config.quantization_factor)
         prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
         emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
-        for j in range(1, self.config.num_quantizers):
+        for j in range(1, quantization_layers):
             prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
             if j < nar_stage:
                 emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])

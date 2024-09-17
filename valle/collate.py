@@ -11,6 +11,7 @@ from .config import ConfigValle
 def get_collate(model_name: str):
     collate_dict = {
         'ValleAR': ValleARCollate,
+        'ValleNAR': ValleNARCollate,
     }
     return collate_dict[model_name]
 
@@ -38,6 +39,22 @@ class ValleARCollate:
             'codes': codes,
             'codes_lens': codes_lens,
             'target': target,
+            'tokens': tokens,
+            'tokens_lens': tokens_lens,
+        }
+
+
+@dataclass
+class ValleNARCollate:
+    config: ConfigValle
+
+    def __call__(self, batch: list[dict[str, Tensor]]) -> dict[str, Tensor]:
+        codes, codes_lens = collate_list([item['codes'] for item in batch])
+        tokens, tokens_lens = collate_list([item['tokens'] for item in batch])
+        assert (codes_lens > tokens_lens).all(), 'Codes length must be greater than tokens length.'
+        return {
+            'codes': codes,
+            'codes_lens': codes_lens,
             'tokens': tokens,
             'tokens_lens': tokens_lens,
         }

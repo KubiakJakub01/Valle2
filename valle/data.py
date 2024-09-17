@@ -1,8 +1,7 @@
-from typing import Literal
-
 import torch
 from datasets import load_dataset
 from einops import rearrange
+from g2p_en import G2p
 from torch.utils.data import DataLoader, Dataset
 
 from .collate import get_collate
@@ -16,6 +15,14 @@ class ValleDataset(Dataset):
         self.dataset = dataset
         self.config = config
         self.encodec_pip = EncodecPip()
+        self.g2p = G2p()
+        self.sym2idx = {sym: idx for idx, sym in enumerate(self.g2p.phonemes)}
+        self.sym2idx[' '] = len(self.sym2idx)
+        self.sym2idx[','] = len(self.sym2idx)
+        self.sym2idx['.'] = len(self.sym2idx)
+
+    def _tokenize(self, text: str) -> torch.Tensor:
+        return torch.tensor([self.sym2idx[phoneme] for phoneme in self.g2p(text)])
 
     def __len__(self):
         return len(self.dataset)
@@ -25,7 +32,7 @@ class ValleDataset(Dataset):
         item = self.dataset[idx]
         audio = rearrange(torch.tensor(item['audio']['array'], dtype=torch.float32), 't -> 1 t')
         sr = item['audio']['sampling_rate']
-        tokens = torch.tensor(item['text_token'])
+        tokens = self._tokenize(item['text'])
 
         # Normalize audio
         audio = rearrange(normalize_audio(audio, sr, self.encodec_pip.sampling_rate), '1 t -> t')
@@ -36,14 +43,21 @@ class ValleDataset(Dataset):
         return {'codes': codes, 'tokens': tokens}
 
 
-def get_dataloaders(model_name: str, config: ConfigValle, split: Literal['train', 'val']):
-    dataset = load_dataset(config.dataset, split=split)
-    valle_dataset = ValleDataset(dataset, config)
-    dataloader = DataLoader(
-        valle_dataset,
+def get_dataloaders(model_name: str, config: ConfigValle) -> tuple[DataLoader, DataLoader]:
+    train_dataset = load_dataset(config.dataset, split='train[:90%]', trust_remote_code=True)
+    valid_dataset = load_dataset(config.dataset, split='train[90%:]', trust_remote_code=True)
+    train_dataloader = DataLoader(
+        ValleDataset(train_dataset, config),
         batch_size=config.batch_size,
         num_workers=config.num_workers,
         collate_fn=get_collate(model_name)(config),
-        shuffle=split == 'train',
+        shuffle=True,
     )
-    return dataloader
+    valid_dataloader = DataLoader(
+        ValleDataset(valid_dataset, config),
+        batch_size=config.valid_batch_size,
+        num_workers=config.num_workers,
+        collate_fn=get_collate(model_name)(config),
+        shuffle=False,
+    )
+    return train_dataloader, valid_dataloader
