@@ -7,6 +7,8 @@ import torch
 import torchaudio
 from torch import Tensor
 
+from .constants import SAMPLING_RATE
+
 # Set pytorch precision
 torch.set_float32_matmul_precision('high')
 
@@ -55,7 +57,7 @@ def to_device(x, device):
     return tree_map(lambda t: t.to(device), x)
 
 
-def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16_000) -> Tensor:
+def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = SAMPLING_RATE) -> Tensor:
     """Normalize audio to target sample rate."""
     # Normalize to mono
     if audio.shape[0] > 1:
@@ -68,11 +70,11 @@ def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = 16_000) -> 
     return audio
 
 
-def load_audio(path: Path, target_sr: int = 16_000) -> Tensor:
+def load_audio(path: Path, target_sr: int = SAMPLING_RATE) -> Tensor:
     """Load audio from file."""
     audio, sr = torchaudio.load(path)
     audio = normalize_audio(audio, sr, target_sr)
-    return audio
+    return audio, target_sr
 
 
 def chunked(input_: Iterable, chunk_size: int, drop_last: bool = False):
