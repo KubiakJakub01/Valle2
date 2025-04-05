@@ -12,32 +12,29 @@ REMOVE_PATTERN_STR = '[' + ''.join(ESCAPED_PUNCTUATION_TO_REMOVE) + ']'
 REMOVE_PATTERN = re.compile(REMOVE_PATTERN_STR)
 
 
-def phonemize_text(text: str, language='en-us', backend='espeak') -> list[str]:
+def phonemize_text(texts: list[str], language='en-us', backend='espeak') -> list[list[str]]:
     """
     Phonemizes a text string using the phonemizer library.
 
     Args:
-        text (str): The text to phonemize.
-        language (str): The language to use for phonemization.
+        texts: List of texts to phonemize.
+        language: The language to use for phonemization.
 
     Returns:
         A list of phonemes for the input text.
     """
-    if len(text) == 0:
-        return ['-']
-    text = REMOVE_PATTERN.sub('', text)
+    texts = [REMOVE_PATTERN.sub('', text) for text in texts]
     phones = phonemize(
-        text,
+        texts,
         language=language,
         backend=backend,
         separator=Separator(phone=' ', word=' - ', syllable='|'),
         punctuation_marks=PUNCTUATION,
         strip=True,
         preserve_punctuation=True,
-        njobs=4,
-    ).split(' ')
-    print(phones)
-    return postprocess_phonemes(phones)
+        njobs=1,
+    )
+    return [postprocess_phonemes(phone.split(' ')) for phone in phones]
 
 
 def postprocess_phonemes(phonemes: list[str]) -> list[str]:
