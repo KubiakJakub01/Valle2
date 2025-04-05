@@ -2,6 +2,8 @@ import torch
 from einops import rearrange
 from encodec import EncodecModel
 
+from ..constants import ENCODEC_BANDWIDTH
+
 
 class EncodecPip:
     """Encodec model for audio coding and decoding.
@@ -10,10 +12,10 @@ class EncodecPip:
         model: Encodec model
     """
 
-    def __init__(self):
+    def __init__(self, device: str):
         """Initialize Encodec model."""
-        self.model = EncodecModel.encodec_model_24khz()
-        self.model.set_target_bandwidth(6.0)
+        self.model = EncodecModel.encodec_model_24khz().to(device)
+        self.model.set_target_bandwidth(ENCODEC_BANDWIDTH)
 
     @property
     def sampling_rate(self) -> int:
