@@ -1,8 +1,15 @@
+import re
+import string
+
 from phonemizer import phonemize
 from phonemizer.separator import Separator
 
 # Define punctuation to preserve explicitly
-PUNCTUATION = '.,?!'
+PUNCTUATION = ".,?!'"
+PUNCTUATION_TO_REMOVE = set(string.punctuation) - set(PUNCTUATION)
+ESCAPED_PUNCTUATION_TO_REMOVE = [re.escape(char) for char in sorted(list(PUNCTUATION_TO_REMOVE))]
+REMOVE_PATTERN_STR = '[' + ''.join(ESCAPED_PUNCTUATION_TO_REMOVE) + ']'
+REMOVE_PATTERN = re.compile(REMOVE_PATTERN_STR)
 
 
 def phonemize_text(text: str, language='en-us', backend='espeak') -> list[str]:
@@ -18,6 +25,7 @@ def phonemize_text(text: str, language='en-us', backend='espeak') -> list[str]:
     """
     if len(text) == 0:
         return ['-']
+    text = REMOVE_PATTERN.sub('', text)
     phones = phonemize(
         text,
         language=language,
