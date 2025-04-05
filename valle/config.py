@@ -8,6 +8,7 @@ from typing import Literal
 class ConfigValle:
     # Data
     dataset: str = field(default='keithito/lj_speech', metadata={'help': 'Hugging Face dataset'})
+    language: str = field(default='en-us', metadata={'help': 'Language'})
     num_workers: int = field(default=4, metadata={'help': 'Number of workers'})
 
     # Input features

@@ -41,4 +41,4 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--model', type=str, choices=['ValleAR', 'ValleNAR'], required=True)
     args = parser.parse_args()
 
-    train(args.hparams, args.model)
+    train(args.config, args.model)
