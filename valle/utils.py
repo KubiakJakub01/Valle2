@@ -87,3 +87,24 @@ def chunked(input_: Iterable, chunk_size: int, drop_last: bool = False):
             chunk = []
     if len(chunk) >= chunk_size or not drop_last:
         yield chunk
+
+
+def load_tsv(
+    tsv_fp: Path,
+    columns: dict[str, str] | list[str] | None = None,
+) -> list[dict[str, str]]:
+    with open(tsv_fp, encoding='utf-8') as fh:
+        lines = fh.read().splitlines()
+    if not lines:
+        return []
+
+    header = lines[0].split('\t')
+    items = []
+    if columns is None:
+        columns = header
+    if isinstance(columns, list):
+        columns = {c: c for c in columns}
+    for line_ in lines[1:]:
+        line = line_.split('\t')
+        items.append({c_: line[header.index(c)] for c, c_ in columns.items()})
+    return items

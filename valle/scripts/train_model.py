@@ -3,11 +3,12 @@ from pathlib import Path
 
 import lightning as L
 from lightning.pytorch import loggers, seed_everything
+from lightning.pytorch.callbacks import ModelCheckpoint
 
-from .config import ConfigValle
-from .data import get_dataloaders
-from .models import get_model_class
-from .utils import log_info
+from ..config import ConfigValle
+from ..data import get_dataloaders
+from ..models import get_model_class
+from ..utils import log_info
 
 
 def train(hparams_fp: Path, model_name: str):
@@ -16,7 +17,7 @@ def train(hparams_fp: Path, model_name: str):
     model = get_model_class(model_name)(config)
 
     # Train model
-    log_info('Training model %s with hparams: ', model_name, config)
+    log_info(f'Training model {model_name} with hparams: {config}')
 
     # Load data
     train_dataloader, valid_dataloader = get_dataloaders(model_name, config)
@@ -24,13 +25,23 @@ def train(hparams_fp: Path, model_name: str):
     # Logger
     logger = loggers.TensorBoardLogger(config.log_path, name=model_name)
 
-    # Train model
+    # ModelCheckpoint callback
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=config.ckpt_path,
+        filename='{step}-{val/loss:.2f}',
+        save_top_k=-1,
+        every_n_train_steps=config.steps_per_ckpt,
+    )
+
+    # Trainer
     trainer = L.Trainer(
         max_steps=config.max_steps,
-        log_every_n_steps=config.log_every_n_steps,
+        log_every_n_steps=config.steps_per_log,
         gradient_clip_val=config.gradient_clip_val,
         accumulate_grad_batches=config.grad_accum,
         logger=logger,
+        val_check_interval=config.steps_per_log,
+        callbacks=[checkpoint_callback],
     )
     trainer.fit(model, train_dataloader, valid_dataloader)
 
