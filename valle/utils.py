@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import coloredlogs
@@ -12,13 +12,9 @@ torch.set_float32_matmul_precision('high')
 
 # Set up logging
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
-handler.setFormatter(
-    coloredlogs.ColoredFormatter(
-        fmt='%(asctime)s :: %(levelname)s :: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-    )
-)
+handler.setFormatter(coloredlogs.ColoredFormatter('%(asctime)s %(levelname)s %(message)s'))
 handler.setLevel(logging.INFO)
 logger.addHandler(handler)
 
@@ -77,3 +73,15 @@ def load_audio(path: Path, target_sr: int = 16_000) -> Tensor:
     audio, sr = torchaudio.load(path)
     audio = normalize_audio(audio, sr, target_sr)
     return audio
+
+
+def chunked(input_: Iterable, chunk_size: int, drop_last: bool = False):
+    """Chunk input into chunks of size chunk_size."""
+    chunk = []
+    for line in input_:
+        chunk.append(line)
+        if len(chunk) >= chunk_size:
+            yield chunk
+            chunk = []
+    if len(chunk) >= chunk_size or not drop_last:
+        yield chunk
