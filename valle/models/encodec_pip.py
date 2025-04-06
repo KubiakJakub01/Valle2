@@ -12,10 +12,14 @@ class EncodecPip:
         model: Encodec model
     """
 
-    def __init__(self, device: str):
+    def __init__(self, device: str = 'cpu'):
         """Initialize Encodec model."""
         self.model = EncodecModel.encodec_model_24khz().to(device)
         self.model.set_target_bandwidth(ENCODEC_BANDWIDTH)
+
+    def __del__(self):
+        """Delete Encodec model."""
+        del self.model
 
     @property
     def sampling_rate(self) -> int:
