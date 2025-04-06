@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from torch import optim
 from torch.distributions import Categorical
 
 from ..config import ConfigValle
@@ -62,18 +63,16 @@ class ValleNAR(L.LightningModule):
         # pylint: disable=arguments-differ
         batch = to_device(batch, self.device)
         codes = batch['codes']
-        # codes_lens = batch['codes_lens']
         tokens = batch['tokens']
         tokens_lens = batch['tokens_lens']
-        target = batch['target']
 
         # Train on random layer
         layer = random.randint(1, self.config.num_quantizers - 1)
-        codes, prefix_len = self._prepare_audio_codes(codes, layer)
-        target = codes[:, prefix_len.max().item() :, layer]
+        codes_emb, prefix_len = self._prepare_audio_codes(codes, layer)
+        target = codes[:, layer, prefix_len.max().item() :]
 
         # Forward pass
-        logits = self.forward(tokens, codes, prefix_len, tokens_lens, layer)
+        logits = self.forward(tokens, codes_emb, prefix_len.to(self.device), tokens_lens, layer)
 
         # Compute loss
         loss = F.cross_entropy(logits, target)
@@ -110,22 +109,27 @@ class ValleNAR(L.LightningModule):
 
         # Prepare mask
         codes_pad_mask = F.pad(
-            build_pad_mask(codes_lens.max().item(), self.device),
+            build_pad_mask(codes_lens, self.device),
             (tokens_lens.max().item(), 0),
             value=False,
         )  # [tokens_len, codes_len]
 
         # Concatenate tokens and codes
-        xy = torch.cat([tokens, codes], dim=1)
+        transformer_input = torch.cat([tokens, codes], dim=1)
 
         # Forward pass
-        z, _ = self.transformer(
-            xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
+        transformer_output, _ = self.transformer(
+            transformer_input,
+            padding_mask=codes_pad_mask,
+            embedding=self.stage_embs[layer - 1].weight,
         )
-        z = z[:, tokens_lens.max().item() + codes_lens.max().item()]
+        transformer_output = transformer_output[
+            :, tokens_lens.max().item() + codes_lens.max().item() :
+        ]
 
         # Project to output
-        logits = self.proj_layers[layer - 1](z)
+        logits = self.proj_layers[layer - 1](transformer_output)
+        logits = rearrange(logits, 'b t c -> b c t')
 
         return logits
 
@@ -195,24 +199,38 @@ class ValleNAR(L.LightningModule):
         """Prepare prompt audio.
 
         Args:
-            codes: Audio codes (batch_size, codes_len, quantization_layers).
+            codes: Audio codes (batch_size, quantization_layers, codes_len).
 
         Returns:
             y_emb: Prompt audio embeddings (batch_size, codes_len, d_model).
             prefix_len: Length of the prompt audio.
         """
         # Cut 3 seconds of audio or 1/3 of the audio
-        _, codes_len, quantization_layers = codes.shape
+        _, quantization_layers, codes_len = codes.shape
         prefix_len = min(codes_len // 3, 3 * self.config.quantization_factor)
-        prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, :prefix_len, 0])
-        emb_codes: torch.Tensor = self.codes_embs[0](codes[:, prefix_len:, 0])
+        prompts_codes: torch.Tensor = self.codes_embs[0](codes[:, 0, :prefix_len])
+        emb_codes: torch.Tensor = self.codes_embs[0](codes[:, 0, prefix_len:])
         for j in range(1, quantization_layers):
-            prompts_codes += self.codes_embs[j](codes[:, :prefix_len, j])
+            prompts_codes += self.codes_embs[j](codes[:, j, :prefix_len])
             if j < nar_stage:
-                emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])
-        y_emb = torch.concat((prompts_codes, emb_codes), dim=1)
+                emb_codes += self.codes_embs[j](codes[:, j, prefix_len:])
+        y_emb = torch.cat((prompts_codes, emb_codes), dim=1)
 
         prefix_len_tensor = repeat(
             torch.tensor(prefix_len, dtype=torch.int32), '-> b', b=codes.shape[0]
         )
         return y_emb, prefix_len_tensor
+
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(
+            self.parameters(),
+            lr=self.config.lr,
+            betas=self.config.betas,
+            weight_decay=self.config.weight_decay,
+            fused=True,
+        )
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            self.config.lr_warmup,
+        )
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
