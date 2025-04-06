@@ -10,8 +10,8 @@ from .config import ConfigValle
 
 def get_collate(model_name: str):
     collate_dict = {
-        'ValleAR': ValleARCollate,
-        'ValleNAR': ValleNARCollate,
+        'valle_ar': ValleARCollate,
+        'valle_nar': ValleNARCollate,
     }
     return collate_dict[model_name]
 
