@@ -86,3 +86,18 @@ def get_best_beam(x, sum_logprobs, stop_token, length_penalty=1.0):
     best_beam = best_beam[best_beam != stop_token]
 
     return best_beam
+
+
+def prepare_prompt_codes(codes: Tensor):
+    """Prepare prompt for ValleAR model.
+
+    Args:
+        codes: Audio codes (c t)
+
+    Returns:
+        Prompt list and prefix length"""
+    t = codes.shape[1]
+    int_low = int(0.25 * t)
+    prefix_len: int = min(int(torch.randint(int_low, int_low * 2, size=()).item()), 225)
+
+    return codes[:, :prefix_len], prefix_len
