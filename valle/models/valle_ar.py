@@ -40,23 +40,25 @@ class ValleAR(L.LightningModule):
     def bos_token(self):
         return self.config.num_audio_tokens + 1
 
-    def training_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        tokens: torch.Tensor,
+        codes: torch.Tensor,
+        codes_lens: torch.Tensor,
+        tokens_lens: torch.Tensor,
+    ) -> torch.Tensor:
         """Forward pass.
 
         Args:
-            batch: Batch data
+            tokens: Input tokens (b t)
+            codes: Input codes (b t c)
+            codes_lens: Lengths of input codes (b)
+            tokens_lens: Lengths of input tokens (b)
 
         Returns:
-            loss: Loss value
+            logits: Logits (b c t)
         """
         # pylint: disable=arguments-differ
-        batch = to_device(batch, self.device)
-        codes = batch['codes']
-        codes_lens = batch['codes_lens']
-        tokens = batch['tokens']
-        tokens_lens = batch['tokens_lens']
-        target = batch['target']
-
         # Prepare tokens
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
@@ -81,8 +83,26 @@ class ValleAR(L.LightningModule):
 
         # Project to output
         logits = rearrange(self.proj(transformer_output), 'b t c -> b c t')
+        return logits
 
-        # Compute loss
+    def training_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
+        """Forward pass.
+
+        Args:
+            batch: Batch data
+
+        Returns:
+            loss: Loss value
+        """
+        # pylint: disable=arguments-differ
+        batch = to_device(batch, self.device)
+        codes = batch['codes']
+        codes_lens = batch['codes_lens']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+        target = batch['target']
+
+        logits = self.forward(tokens, codes, codes_lens, tokens_lens)
         loss = F.cross_entropy(logits, target)
 
         self.log('train/loss', loss)
