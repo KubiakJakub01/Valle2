@@ -4,7 +4,7 @@ import lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
+from einops import rearrange, repeat
 from torch.distributions import Categorical
 
 from ..config import ConfigValle
@@ -62,28 +62,56 @@ class ValleNAR(L.LightningModule):
         # pylint: disable=arguments-differ
         batch = to_device(batch, self.device)
         codes = batch['codes']
-        codes_lens = batch['codes_lens']
+        # codes_lens = batch['codes_lens']
         tokens = batch['tokens']
         tokens_lens = batch['tokens_lens']
         target = batch['target']
-        max_tokens_len = int(tokens_lens.max())
 
+        # Train on random layer
+        layer = random.randint(1, self.config.num_quantizers - 1)
+        codes, prefix_len = self._prepare_audio_codes(codes, layer)
+        target = codes[:, prefix_len.max().item() :, layer]
+
+        # Forward pass
+        logits = self.forward(tokens, codes, prefix_len, tokens_lens, layer)
+
+        # Compute loss
+        loss = F.cross_entropy(logits, target)
+
+        return loss
+
+    def forward(
+        self,
+        tokens: torch.Tensor,
+        codes: torch.Tensor,
+        codes_lens: torch.Tensor,
+        tokens_lens: torch.Tensor,
+        layer: int,
+    ) -> torch.Tensor:
+        """Forward pass.
+
+        Args:
+            tokens: Token sequences (batch_size, tokens_len).
+            codes: Audio codes (batch_size, codes_len, quantization_layers).
+            codes_lens: Lengths of input codes (batch_size).
+            tokens_lens: Lengths of input tokens (batch_size).
+            layer: Layer to train on.
+
+        Returns:
+            logits: Logits (batch_size, tokens_len, num_audio_tokens).
+        """
+        # pylint: disable=arguments-differ
         # Prepare tokens
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
 
-        # Prepare prompt and target audio
-        layer = random.randint(1, self.config.num_quantizers - 1)
-        codes, prefix_len = self._prepare_audio_codes(codes, layer)
+        # Prepare codes
         codes = self.audio_position_emb(codes)
-
-        # Prepare target audio
-        target = codes[:, prefix_len:, layer]
 
         # Prepare mask
         codes_pad_mask = F.pad(
-            build_pad_mask(codes_lens, self.device),
-            (max_tokens_len, 0),
+            build_pad_mask(codes_lens.max().item(), self.device),
+            (tokens_lens.max().item(), 0),
             value=False,
         )  # [tokens_len, codes_len]
 
@@ -94,15 +122,12 @@ class ValleNAR(L.LightningModule):
         z, _ = self.transformer(
             xy, padding_mask=codes_pad_mask, embedding=self.stage_embs[layer - 1].weight
         )
-        z = z[:, max_tokens_len + prefix_len]
+        z = z[:, tokens_lens.max().item() + codes_lens.max().item()]
 
         # Project to output
         logits = self.proj_layers[layer - 1](z)
 
-        # Compute loss
-        loss = F.cross_entropy(logits, target)
-
-        return loss
+        return logits
 
     @torch.inference_mode()
     def generate(
@@ -164,7 +189,9 @@ class ValleNAR(L.LightningModule):
 
         return output_codes
 
-    def _prepare_audio_codes(self, codes: torch.Tensor, nar_stage: int) -> tuple[torch.Tensor, int]:
+    def _prepare_audio_codes(
+        self, codes: torch.Tensor, nar_stage: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Prepare prompt audio.
 
         Args:
@@ -185,4 +212,7 @@ class ValleNAR(L.LightningModule):
                 emb_codes += self.codes_embs[j](codes[:, prefix_len:, j])
         y_emb = torch.concat((prompts_codes, emb_codes), dim=1)
 
-        return y_emb, prefix_len
+        prefix_len_tensor = repeat(
+            torch.tensor(prefix_len, dtype=torch.int32), '-> b', b=codes.shape[0]
+        )
+        return y_emb, prefix_len_tensor
