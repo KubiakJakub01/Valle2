@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from torch import optim
+from torchmetrics.classification import MulticlassAccuracy
 
 from ..config import ConfigValle
 from ..utils import to_device
@@ -27,6 +28,15 @@ class ValleAR(L.LightningModule):
 
         # Project to output
         self.proj = nn.Linear(self.config.d_model, self.config.num_audio_tokens + 1, bias=False)
+
+        # Metrics
+        self.acc = MulticlassAccuracy(
+            self.config.num_audio_tokens + 1,
+            top_k=10,
+            average='micro',
+            multiclass_mode='global',
+            ignore_index=self.eos_token,
+        )
 
     @property
     def device(self):
@@ -104,9 +114,9 @@ class ValleAR(L.LightningModule):
 
         logits = self.forward(tokens, codes, codes_lens, tokens_lens)
         loss = F.cross_entropy(logits, target)
-
+        self.acc(logits, target)
         self.log('train/loss', loss)
-
+        self.log('train/acc', self.acc)
         return loss
 
     @torch.inference_mode()
