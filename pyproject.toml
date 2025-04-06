@@ -30,6 +30,7 @@ speechbrain = "^1.0.0"
 g2p-en = "^2.1.0"
 phonemizer = "^3.3.0"
 tqdm = "^4.67.1"
+torchmetrics = "^1.7.0"
 
 [[tool.poetry.source]]
 name = "torch"
