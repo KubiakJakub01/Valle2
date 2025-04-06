@@ -27,6 +27,9 @@ class ConfigValle:
     polling_factor: int = field(default=320, metadata={'help': 'Polling factor'})
 
     # Model
+    model_name: Literal['valle_ar', 'valle_nar'] = field(
+        default='valle_ar', metadata={'help': 'Model name'}
+    )
     d_model: int = field(default=256, metadata={'help': 'Model dimension'})
     n_heads: int = field(default=4, metadata={'help': 'Number of heads'})
     dim_feedforward: int = field(default=1024, metadata={'help': 'Feedforward dimension'})
@@ -36,7 +39,7 @@ class ConfigValle:
     )
     num_layers: int = field(default=8, metadata={'help': 'Number of layers'})
     norm: Literal['AdaptiveLayerNorm', 'LayerNorm'] = field(
-        default='AdaptiveLayerNorm', metadata={'help': 'Normalization layer'}
+        init=False, metadata={'help': 'Normalization layer'}
     )
     vocab_size: int = field(init=False)
 
@@ -92,8 +95,10 @@ class ConfigValle:
             vocab_data = json.load(f)
             self.vocab_size = len(vocab_data) + 1
 
-        if self.norm not in ['AdaptiveLayerNorm', 'LayerNorm']:
-            raise ValueError('Normalization layer must be AdaptiveLayerNorm or LayerNorm')
+        if self.model_name == 'valle_ar':
+            self.norm = 'LayerNorm'
+        else:
+            self.norm = 'AdaptiveLayerNorm'
         if self.activation not in ['relu', 'gelu']:
             raise ValueError('Activation function must be relu or gelu')
 
@@ -116,10 +121,8 @@ class ConfigValle:
 
     @classmethod
     def from_dict(cls, hparams_dict):
-        if 'prepared_data_dir' in hparams_dict and isinstance(
-            hparams_dict['prepared_data_dir'], str
-        ):
-            hparams_dict['prepared_data_dir'] = Path(hparams_dict['prepared_data_dir'])
+        if 'data_dir' in hparams_dict and isinstance(hparams_dict['data_dir'], str):
+            hparams_dict['data_dir'] = Path(hparams_dict['data_dir'])
         if 'ckpt_path' in hparams_dict and isinstance(hparams_dict['ckpt_path'], str):
             hparams_dict['ckpt_path'] = Path(hparams_dict['ckpt_path'])
         if 'log_path' in hparams_dict and isinstance(hparams_dict['log_path'], str):

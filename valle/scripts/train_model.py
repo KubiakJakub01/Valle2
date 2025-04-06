@@ -11,19 +11,17 @@ from ..models import get_model_class
 from ..utils import log_info
 
 
-def train(hparams_fp: Path, model_name: str):
-    config = ConfigValle.from_json(hparams_fp)
+def train(hparams_fp: Path):
+    config: ConfigValle = ConfigValle.from_json(hparams_fp)
     seed_everything(config.seed)
-    model = get_model_class(model_name)(config)
-
-    # Train model
-    log_info(f'Training model {model_name} with hparams: {config}')
+    model = get_model_class(config.model_name)(config)
+    log_info(f'Training model {config.model_name} with config: {config}')
 
     # Load data
-    train_dataloader, valid_dataloader = get_dataloaders(model_name, config)
+    train_dataloader, valid_dataloader = get_dataloaders(config.model_name, config)
 
     # Logger
-    logger = loggers.TensorBoardLogger(config.log_path, name=model_name)
+    logger = loggers.TensorBoardLogger(config.log_path, name=config.model_name)
 
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
@@ -49,7 +47,6 @@ def train(hparams_fp: Path, model_name: str):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=Path, required=True)
-    parser.add_argument('-m', '--model', type=str, choices=['ValleAR', 'ValleNAR'], required=True)
     args = parser.parse_args()
 
-    train(args.config, args.model)
+    train(args.config)
