@@ -16,6 +16,7 @@ def train(hparams_fp: Path):
     seed_everything(config.seed)
     model = get_model_class(config.model_name)(config)
     log_info(f'Training model {config.model_name} with config: {config}')
+    config.dump_to_json(config.ckpt_path / 'hparams.json')
 
     # Load data
     train_dataloader, valid_dataloader = get_dataloaders(config.model_name, config)

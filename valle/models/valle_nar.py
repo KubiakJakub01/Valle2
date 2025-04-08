@@ -174,7 +174,7 @@ class ValleNAR(L.LightningModule):
         """
         # pylint: disable=arguments-differ
         # Prepare tokens
-        tokens = self.tokens_emb(tokens)  # (b t c)
+        tokens = self.tokens_emb(tokens)
         tokens = self.tokens_position_emb(tokens)
 
         # Prepare codes
@@ -185,7 +185,7 @@ class ValleNAR(L.LightningModule):
             build_pad_mask(codes_lens, self.device),
             (tokens_lens.max().item(), 0),
             value=False,
-        )  # [tokens_len, codes_len]
+        )
 
         # Concatenate tokens and codes
         transformer_input = torch.cat([tokens, codes], dim=1)

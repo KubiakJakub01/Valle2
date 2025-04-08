@@ -138,7 +138,6 @@ class ConfigValle:
             hparams_dict = json.load(f)
         return cls.from_dict(hparams_dict)
 
-    def dump_to_json(self):
-        json_file = self.ckpt_path / 'hparams.json'
+    def dump_to_json(self, json_file: Path):
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(self.__dict__, f, default=str, indent=4)
