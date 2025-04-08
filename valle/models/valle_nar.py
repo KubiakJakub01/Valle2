@@ -7,9 +7,11 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import optim
 from torch.distributions import Categorical
+from torchmetrics.classification import MulticlassAccuracy
 
 from ..config import ConfigValle
 from ..utils import to_device
+from .encodec_pip import EncodecPip
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
 from .utils import build_pad_mask
 
@@ -47,6 +49,16 @@ class ValleNAR(L.LightningModule):
             ]
         )
 
+        # Metrics
+        self.accuracy = MulticlassAccuracy(
+            self.config.num_audio_tokens,
+            average='micro',
+            multidim_average='global',
+            ignore_index=self.eos_token,
+        )
+
+        self.validation_dict: dict[str, torch.Tensor] = {}
+
     @property
     def device(self):
         return next(self.parameters()).device
@@ -76,8 +88,69 @@ class ValleNAR(L.LightningModule):
 
         # Compute loss
         loss = F.cross_entropy(logits, target)
-
+        accuracy = self.accuracy(logits, target)
+        self.log('train/loss', loss)
+        self.log('train/acc', accuracy)
         return loss
+
+    @torch.inference_mode()
+    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
+        """Validation step.
+
+        Args:
+            batch: Batch data
+
+        Returns:
+            loss: Loss value
+        """
+        # pylint: disable=arguments-differ
+        batch = to_device(batch, self.device)
+        codes = batch['codes']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+
+        # Forward pass
+        layer = random.randint(1, self.config.num_quantizers - 1)
+        codes_emb, prefix_len = self._prepare_audio_codes(codes, layer)
+        target = codes[:, layer, prefix_len.max().item() :]
+
+        # Forward pass
+        logits = self.forward(tokens, codes_emb, prefix_len.to(self.device), tokens_lens, layer)
+
+        # Compute loss
+        loss = F.cross_entropy(logits, target)
+        accuracy = self.accuracy(logits, target)
+
+        # Log metrics
+        self.log('val/loss', loss)
+        self.log('val/acc', accuracy)
+
+        if not self.validation_dict:
+            self.validation_dict['codes'] = codes
+            self.validation_dict['tokens'] = tokens
+
+    def on_validation_epoch_end(self):
+        """On validation epoch end."""
+        if not self.validation_dict:
+            return
+
+        codes: torch.Tensor = rearrange(self.validation_dict['codes'], '1 q t -> q t')
+        tokens: torch.Tensor = rearrange(self.validation_dict['tokens'], '1 t -> t')
+
+        # Make inference
+        codes_first_layer = codes[0, :]
+        output_codes = self.generate(tokens, codes, tokens, codes_first_layer)
+
+        # Log audio
+        encodec = EncodecPip(device='cpu')
+        output_audio = encodec.decode(output_codes.cpu())
+        target_audio = encodec.decode(codes.cpu())
+        self.logger.experiment.add_audio(
+            'val/output_audio', output_audio, sample_rate=encodec.sampling_rate
+        )
+        self.logger.experiment.add_audio(
+            'val/target_audio', target_audio, sample_rate=encodec.sampling_rate
+        )
 
     def forward(
         self,
@@ -129,7 +202,7 @@ class ValleNAR(L.LightningModule):
 
         # Project to output
         logits = self.proj_layers[layer - 1](transformer_output)
-        logits = rearrange(logits, 'b t c -> b c t')
+        logits = rearrange(logits, 'b t q -> b q t')
 
         return logits
 
@@ -145,7 +218,7 @@ class ValleNAR(L.LightningModule):
 
         Args:
             prompt_tokens: Token sequences (prompt_tokens_len).
-            prompt_codes: Audio codes (prompt_codes_len, quantization_layers).
+            prompt_codes: Audio codes (quantization_layers, prompt_codes_len).
             target_tokens: Target token sequences (target_tokens_len).
             target_codes_first_layer: Target audio codes (target_codes_len).
 
@@ -153,12 +226,10 @@ class ValleNAR(L.LightningModule):
             output_codes: Output audio codes (output_len, quantization_layers).
         """
         # Prepare prompts
-        emb_prompt_codes = torch.zeros_like(prompt_codes)
-        emb_output_codes = torch.zeros_like(target_codes_first_layer)
-        output_codes = target_codes_first_layer
-        prompt_len, num_quantizers = prompt_codes.shape
-        prompt_codes = rearrange(prompt_codes, 't c -> c t')
-        for j in range(num_quantizers):
+        output_codes = rearrange(target_codes_first_layer, 'q -> 1 q')
+        num_quantizers, prompt_len = prompt_codes.shape
+        emb_prompt_codes = self.codes_embs[0](prompt_codes[0])
+        for j in range(1, num_quantizers):
             emb_prompt_codes += self.codes_embs[j](prompt_codes[j])
 
         # Prepare tokens
@@ -168,17 +239,17 @@ class ValleNAR(L.LightningModule):
         tokens = self.tokens_position_emb(tokens)
 
         # Decoding loop
+        emb_output_codes = self.codes_embs[0](output_codes[0])
         for n_layer in range(1, num_quantizers):
             # Prepare codes
-            emb_output_codes += self.codes_embs[n_layer](output_codes)
             codes = rearrange(
-                torch.cat([emb_prompt_codes, emb_output_codes], dim=0), 't c -> 1 t c'
+                torch.cat([emb_prompt_codes, emb_output_codes], dim=0), 't q -> 1 t q'
             )
             codes = self.audio_position_emb(codes)
 
             # Transformer
             transformer_input = torch.cat([tokens, codes], dim=1)
-            transformer_output = self.transformer(
+            transformer_output, _ = self.transformer(
                 transformer_input, embedding=self.stage_embs[n_layer - 1].weight
             )
 
@@ -187,6 +258,7 @@ class ValleNAR(L.LightningModule):
 
             # Sampling
             sampled_tokens = Categorical(logits=logits / self.config.temperature).sample()
+            emb_output_codes += self.codes_embs[n_layer](sampled_tokens[0])
 
             # Update output codes
             output_codes = torch.cat([output_codes, sampled_tokens], dim=0)

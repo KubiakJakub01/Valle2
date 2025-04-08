@@ -37,7 +37,7 @@ class ValleAR(L.LightningModule):
         self.proj = nn.Linear(self.config.d_model, self.config.num_audio_tokens + 1, bias=False)
 
         # Metrics
-        self.acc = MulticlassAccuracy(
+        self.accuracy = MulticlassAccuracy(
             self.config.num_audio_tokens + 1,
             average='micro',
             multidim_average='global',
@@ -77,11 +77,12 @@ class ValleAR(L.LightningModule):
 
         logits = self.forward(tokens, codes, codes_lens, tokens_lens)
         loss = F.cross_entropy(logits, target)
-        accuracy = self.acc(logits, target)
+        accuracy = self.accuracy(logits, target)
         self.log('train/loss', loss)
         self.log('train/acc', accuracy)
         return loss
 
+    @torch.inference_mode()
     def validation_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
         """Validation step.
 
@@ -102,7 +103,7 @@ class ValleAR(L.LightningModule):
         # Forward pass
         logits = self.forward(tokens, codes, codes_lens, tokens_lens)
         loss = F.cross_entropy(logits, target)
-        accuracy = self.acc(logits, target)
+        accuracy = self.accuracy(logits, target)
 
         # Log metrics
         self.log('val/loss', loss)
