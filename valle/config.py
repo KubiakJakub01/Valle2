@@ -76,7 +76,7 @@ class ConfigValle:
     log_path: Path = field(default=Path('models/logs'), metadata={'help': 'Log path'})
 
     def __post_init__(self):
-        self.data_dir = Path(self.data_dir)
+        self.data_dir = Path(self.data_dir).absolute()
         if not self.data_dir.is_dir():
             raise NotADirectoryError(f'Prepared data directory not found: {self.data_dir}')
 
@@ -102,10 +102,13 @@ class ConfigValle:
         if self.activation not in ['relu', 'gelu']:
             raise ValueError('Activation function must be relu or gelu')
 
-        self.ckpt_path = Path(self.ckpt_path)
+        self.ckpt_path = Path(self.ckpt_path).absolute()
         self.ckpt_path.mkdir(parents=True, exist_ok=True)
-        self.log_path = Path(self.log_path)
+        self.log_path = Path(self.log_path).absolute()
         self.log_path.mkdir(parents=True, exist_ok=True)
+
+    def __repr__(self):
+        return json.dumps(self.__dict__, default=str, indent=4)
 
     @property
     def quantization_factor(self):
@@ -134,3 +137,8 @@ class ConfigValle:
         with open(json_file, encoding='utf-8') as f:
             hparams_dict = json.load(f)
         return cls.from_dict(hparams_dict)
+
+    def dump_to_json(self):
+        json_file = self.ckpt_path / 'hparams.json'
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(self.__dict__, f, default=str, indent=4)
