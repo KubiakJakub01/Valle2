@@ -64,6 +64,9 @@ class ConfigValle:
     length_penalty: float = field(default=1.0, metadata={'help': 'Length penalty'})
 
     # Training
+    base_checkpoint: int | None = field(
+        default=None, metadata={'help': 'Base checkpoint to resume from'}
+    )
     seed: int = field(default=42, metadata={'help': 'Seed for reproducibility'})
     batch_size: int = field(default=4, metadata={'help': 'Batch size'})
     valid_batch_size: int = field(default=1, metadata={'help': 'Validation batch size'})

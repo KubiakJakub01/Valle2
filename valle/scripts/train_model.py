@@ -27,7 +27,7 @@ def train(hparams_fp: Path):
     # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
         dirpath=config.ckpt_path,
-        filename='{step}-{val/loss:.2f}',
+        filename='{step}',
         save_top_k=-1,
         every_n_train_steps=config.steps_per_ckpt,
     )
@@ -39,10 +39,13 @@ def train(hparams_fp: Path):
         gradient_clip_val=config.gradient_clip_val,
         accumulate_grad_batches=config.grad_accum,
         logger=logger,
-        val_check_interval=config.steps_per_log,
+        val_check_interval=config.steps_per_ckpt,
         callbacks=[checkpoint_callback],
     )
-    trainer.fit(model, train_dataloader, valid_dataloader)
+    ckpt_path = (
+        config.ckpt_path / f'step={config.base_checkpoint}.ckpt' if config.base_checkpoint else None
+    )
+    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
 
 
 if __name__ == '__main__':
