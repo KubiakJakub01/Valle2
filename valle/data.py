@@ -1,13 +1,11 @@
-import json
 import random
-from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, Dataset
 
 from .collate import get_collate
 from .config import ConfigValle
-from .utils import load_tsv, log_error, log_info, log_warning
+from .utils import load_tsv, load_vocabulary, log_error, log_info, log_warning
 
 
 class ValleDataset(Dataset):
@@ -25,22 +23,10 @@ class ValleDataset(Dataset):
         super().__init__()
         self.metadata = metadata_list
         self.config = config
-        self.phoneme_to_id = self._load_vocabulary(self.config.vocab_path)
+        self.phoneme_to_id = load_vocabulary(self.config.vocab_path)
 
         log_info(f'Initialized ValleDataset with {len(self.metadata)} items.')
         log_info(f'Vocabulary size: {len(self.phoneme_to_id)}')
-
-    def _load_vocabulary(self, vocab_path: Path) -> dict[str, int]:
-        """Loads the phoneme vocabulary and creates a phoneme-to-ID mapping."""
-        log_info(f'Loading vocabulary from: {vocab_path}')
-        try:
-            with open(vocab_path, encoding='utf-8') as f:
-                vocab_data = json.load(f)
-            phoneme_to_id = {phoneme: int(id_str) for id_str, phoneme in vocab_data.items()}
-            return phoneme_to_id
-        except Exception as e:
-            log_error(f'An unexpected error occurred while loading vocabulary: {e}')
-            raise
 
     def _tokenize_phonemes(self, phoneme_string: str) -> torch.Tensor:
         """Converts a space-separated phoneme string into a tensor of integer IDs."""
