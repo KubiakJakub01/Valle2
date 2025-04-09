@@ -12,7 +12,7 @@ pylint = "pylint --rcfile pyproject.toml valle"
 pytest = "pytest --cache-clear --cov=valle --disable-warnings tests"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10,<3.13"
 torch = { version = "2.2.1+cu121", source = "torch" }
 torchaudio = { version = "2.2.1+cu121", source = "torch" }
 einops = "^0.8.0"
@@ -31,6 +31,7 @@ g2p-en = "^2.1.0"
 phonemizer = "^3.3.0"
 tqdm = "^4.67.1"
 torchmetrics = "^1.7.0"
+whisperx = "^3.3.1"
 
 [[tool.poetry.source]]
 name = "torch"
