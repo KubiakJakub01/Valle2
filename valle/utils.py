@@ -122,3 +122,15 @@ def load_vocabulary(vocab_path: Path) -> dict[str, int]:
     except Exception as e:
         log_error(f'An unexpected error occurred while loading vocabulary: {e}')
         raise
+
+
+def tokenize_phonemes(phoneme_string: str, phoneme_to_id: dict[str, int]) -> torch.Tensor:
+    """Converts a space-separated phoneme string into a tensor of integer IDs."""
+    tokens = []
+    for phoneme in phoneme_string.strip().split():
+        token_id = phoneme_to_id.get(phoneme)
+        if token_id is None:
+            log_warning(f"Phoneme '{phoneme}' not found in vocabulary. Skipping.")
+            continue
+        tokens.append(token_id)
+    return torch.LongTensor(tokens)
