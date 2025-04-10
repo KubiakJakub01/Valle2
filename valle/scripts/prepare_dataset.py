@@ -53,7 +53,7 @@ def parse_args():
         help="Language for phonemization (e.g., 'en-us', 'fr-fr').",
     )
     parser.add_argument(
-        '--resample_rate',
+        '--sample_rate',
         type=int,
         default=SAMPLING_RATE,
         help='Sample rate to resample audio to before encoding.',
@@ -167,7 +167,7 @@ def build_and_save_vocabulary(metadata: list[dict], output_file: Path):
 def extract_and_save_codes(
     metadata: list[dict],
     output_dir: Path,
-    resample_rate: int,
+    sample_rate: int,
     device: str,
 ):
     """Extracts Encodec codes for audio files and saves them."""
@@ -187,7 +187,7 @@ def extract_and_save_codes(
             continue
 
         try:
-            audio, _ = load_audio(audio_path, resample_rate)
+            audio, _ = load_audio(audio_path, sample_rate)
             audio = rearrange(audio, '1 t -> t').to(device)
             codes = encodec_pip.encode(audio)
             torch.save(codes, output_code_path)
@@ -224,7 +224,7 @@ def main(
     dataset_format: str,
     output_dir: Path,
     language: str,
-    resample_rate: int,
+    sample_rate: int,
     device: str,
 ):
     # 1. Load metadata
@@ -241,7 +241,7 @@ def main(
     build_and_save_vocabulary(metadata, vocab_path)
 
     # 4. Extract and save audio codes
-    extract_and_save_codes(metadata, output_dir, resample_rate, device)
+    extract_and_save_codes(metadata, output_dir, sample_rate, device)
 
     # 5. Save processed metadata (including paths and phonemes)
     processed_metadata_path = output_dir / 'metadata.tsv'
