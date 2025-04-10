@@ -1,4 +1,4 @@
-# Valle
+# Valle2
 
 Implementation of a Text-to-Speech (TTS) and Automatic Speech Recognition (ASR) model inspired by the VALL-E X architecture.
 
@@ -67,8 +67,35 @@ poetry run python -m valle.scripts.synthesize -h
 -   [x] ValleAR and ValleNAR implementation.
 -   [x] Training loop implementation.
 -   [x] Synthesis loop implementation.
+-   [ ] Add support for other datasets (e.g., VCTK, LibriTTS).
 -   [ ] Evaluation scripts (e.g., MOS, WER calculation).
 -   [ ] Pre-trained model release.
 -   [ ] Improved documentation and examples.
 -   [ ] Code optimization and performance improvements.
 -   [ ] Integration with MLOps tools (e.g., Weights & Biases).
+
+### Citations
+
+```bibtex
+@misc{wang2023neuralcodeclanguagemodels,
+      title={Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers}, 
+      author={Chengyi Wang and Sanyuan Chen and Yu Wu and Ziqiang Zhang and Long Zhou and Shujie Liu and Zhuo Chen and Yanqing Liu and Huaming Wang and Jinyu Li and Lei He and Sheng Zhao and Furu Wei},
+      year={2023},
+      eprint={2301.02111},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2301.02111}, 
+}
+```
+
+```bibtex
+@misc{chen2024valle2neuralcodec,
+      title={VALL-E 2: Neural Codec Language Models are Human Parity Zero-Shot Text to Speech Synthesizers}, 
+      author={Sanyuan Chen and Shujie Liu and Long Zhou and Yanqing Liu and Xu Tan and Jinyu Li and Sheng Zhao and Yao Qian and Furu Wei},
+      year={2024},
+      eprint={2406.05370},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2406.05370}, 
+}
+```
