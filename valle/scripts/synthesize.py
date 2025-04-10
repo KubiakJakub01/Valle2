@@ -9,15 +9,7 @@ from einops import rearrange
 from ..config import ConfigValle
 from ..models import EncodecPip, ValleAR, ValleNAR, load_model_for_inference
 from ..phonemize import phonemize_text
-from ..utils import (
-    load_audio,
-    load_tsv,
-    load_vocabulary,
-    log_debug,
-    log_error,
-    log_info,
-    tokenize_phonemes,
-)
+from ..utils import load_audio, load_tsv, log_error, log_info, tokenize_phonemes
 
 
 @dataclass
@@ -37,16 +29,10 @@ def parse_args():
         description='Synthesize speech using VALL-E AR and NAR models.'
     )
     parser.add_argument(
-        '--config', type=Path, required=True, help='Path to the model configuration JSON file.'
+        '--config_ar', type=Path, required=True, help='Path to the ValleAR configuration file.'
     )
     parser.add_argument(
-        '--ar_checkpoint', type=Path, required=True, help='Path to the ValleAR checkpoint (.ckpt).'
-    )
-    parser.add_argument(
-        '--nar_checkpoint',
-        type=Path,
-        required=True,
-        help='Path to the ValleNAR checkpoint (.ckpt).',
+        '--config_nar', type=Path, required=True, help='Path to the ValleNAR configuration file.'
     )
     parser.add_argument(
         '--input_path', type=Path, help='Path to the TSV file containing the input items.'
@@ -59,27 +45,31 @@ def parse_args():
 
 def load_synthesize_items(
     input_path: Path,
-    language: str,
     config: ConfigValle,
 ) -> list[SynthesizeItem]:
     """Load synthesize items from the given path and text."""
     items = load_tsv(input_path)
-    vocab = load_vocabulary(config.vocab_path)
-    target_phonemes = phonemize_text([item['target_text'] for item in items], language=language)
-    prompt_phonemes = phonemize_text([item['prompt_text'] for item in items], language=language)
-    target_tokens = [tokenize_phonemes(phonemes, vocab) for phonemes in target_phonemes]
-    prompt_tokens = [tokenize_phonemes(phonemes, vocab) for phonemes in prompt_phonemes]
+    target_phonemes = phonemize_text([item['target_text'] for item in items], config.language)
+    prompt_phonemes = phonemize_text([item['prompt_text'] for item in items], config.language)
+    target_tokens = [
+        tokenize_phonemes(phonemes, config.phoneme_to_id) for phonemes in target_phonemes
+    ]
+    prompt_tokens = [
+        tokenize_phonemes(phonemes, config.phoneme_to_id) for phonemes in prompt_phonemes
+    ]
 
     return [
         SynthesizeItem(
-            item_id=item['id'],
+            item_id=item['item_id'],
             target_text=item['target_text'],
             prompt_audio_path=Path(item['prompt_audio_path']),
             prompt_text=item['prompt_text'],
-            target_tokens=target_tokens,
-            prompt_tokens=prompt_tokens,
+            target_tokens=target_token,
+            prompt_tokens=prompt_token,
         )
-        for item in items
+        for item, target_token, prompt_token in zip(
+            items, target_tokens, prompt_tokens, strict=False
+        )
     ]
 
 
@@ -98,9 +88,8 @@ def synthesize_item(
     audio = rearrange(audio, '1 t -> t').to(device)
     codes = encodec_pip.encode(audio)
 
-    # Tokens
-    target_tokens = item.target_tokens.to(device)
     prompt_tokens = item.prompt_tokens.to(device)
+    target_tokens = item.target_tokens.to(device)
 
     # Synthesize
     valle_ar_output = valle_ar.generate(
@@ -114,40 +103,30 @@ def synthesize_item(
         target_tokens=target_tokens,
         target_codes_first_layer=valle_ar_output,
     )
-    output_audio = encodec_pip.decode(valle_nar_output.cpu())
+    output_audio = rearrange(encodec_pip.decode(valle_nar_output), 't -> 1 t')
 
-    return output_audio
+    return output_audio.cpu()
 
 
 def main(
-    config_fp: Path,
-    ar_checkpoint: Path,
-    nar_checkpoint: Path,
+    config_ar_fp: Path,
+    config_nar_fp: Path,
     input_path: Path,
     output_path: Path,
 ):
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log_info(f'Using device: {device}')
-
-    # Load configuration
-    log_info(f'Loading configuration from: {config_fp}')
-    try:
-        config = ConfigValle.from_json(config_fp)
-        log_debug(f'Config loaded: {config}')
-    except FileNotFoundError:
-        log_error(f'Configuration file not found: {config_fp}')
-        return
-    except Exception as e:
-        log_error(f'Error loading configuration: {e}')
-        return
+    output_path.mkdir(parents=True, exist_ok=True)
 
     # Load models
     try:
-        valle_ar: ValleAR = load_model_for_inference(ar_checkpoint, ValleAR, config, device)
-        valle_nar: ValleNAR = load_model_for_inference(nar_checkpoint, ValleNAR, config, device)
+        valle_ar_config = ConfigValle.from_json(config_ar_fp)
+        valle_nar_config = ConfigValle.from_json(config_nar_fp)
+        valle_ar: ValleAR = load_model_for_inference(valle_ar_config, ValleAR, device)
+        valle_nar: ValleNAR = load_model_for_inference(valle_nar_config, ValleNAR, device)
         encodec_pip = EncodecPip(device=device)
-        log_info('Encodec model loaded.')
+        log_info('Models loaded.')
     except Exception as e:
         log_error(f'Failed to load models: {e}')
         return
@@ -155,8 +134,7 @@ def main(
     # Preprocess inputs
     log_info('Preprocessing inputs...')
     try:
-        # Load and process prompt audio
-        synthesize_items = load_synthesize_items(input_path, config.language, config)
+        synthesize_items = load_synthesize_items(input_path, valle_ar_config)
         log_info(f'Loaded {len(synthesize_items)} synthesize items.')
     except Exception as e:
         log_error(f'Error preprocessing inputs: {e}')
@@ -167,8 +145,12 @@ def main(
     for item in synthesize_items:
         log_info(f'Synthesizing item: {item.item_id}')
         try:
-            output_audio = synthesize_item(item, valle_ar, valle_nar, encodec_pip, config, device)
-            torchaudio.save(output_path / f'{item.item_id}.wav', output_audio, config.sampling_rate)
+            output_audio = synthesize_item(
+                item, valle_ar, valle_nar, encodec_pip, valle_ar_config, device
+            )
+            torchaudio.save(
+                output_path / f'{item.item_id}.wav', output_audio, valle_ar_config.sampling_rate
+            )
         except Exception as e:
             log_error(f'Error synthesizing item {item.item_id}: {e}')
             continue
@@ -176,4 +158,9 @@ def main(
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args.config, args.ar_checkpoint, args.nar_checkpoint, args.input_path, args.output_path)
+    main(
+        args.config_ar,
+        args.config_nar,
+        args.input_path,
+        args.output_path,
+    )
