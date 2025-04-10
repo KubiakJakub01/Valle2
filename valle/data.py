@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from .collate import get_collate
 from .config import ConfigValle
-from .utils import load_tsv, load_vocabulary, log_error, log_info, tokenize_phonemes
+from .utils import load_tsv, log_error, log_info, tokenize_phonemes
 
 
 class ValleDataset(Dataset):
@@ -23,10 +23,9 @@ class ValleDataset(Dataset):
         super().__init__()
         self.metadata = metadata_list
         self.config = config
-        self.phoneme_to_id = load_vocabulary(self.config.vocab_path)
 
         log_info(f'Initialized ValleDataset with {len(self.metadata)} items.')
-        log_info(f'Vocabulary size: {len(self.phoneme_to_id)}')
+        log_info(f'Vocabulary size: {self.config.vocab_size}')
 
     def __len__(self):
         """Returns the number of items in the dataset."""
@@ -59,7 +58,7 @@ class ValleDataset(Dataset):
             if not isinstance(codes, torch.Tensor):
                 raise TypeError(f'Loaded codes file is not a tensor: {code_path}')
 
-            tokens = tokenize_phonemes(phonemes, self.phoneme_to_id)
+            tokens = tokenize_phonemes(phonemes, self.config.phoneme_to_id)
 
             return {'codes': codes, 'tokens': tokens}
 
