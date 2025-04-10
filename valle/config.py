@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
@@ -38,10 +39,6 @@ class ConfigValle:
         default='relu', metadata={'help': 'Activation function'}
     )
     num_layers: int = field(default=8, metadata={'help': 'Number of layers'})
-    norm: Literal['AdaptiveLayerNorm', 'LayerNorm'] = field(
-        init=False, metadata={'help': 'Normalization layer'}
-    )
-    vocab_size: int = field(init=False)
 
     # Optimizer
     lr: float = field(default=1e-4, metadata={'help': 'Learning rate'})
@@ -80,31 +77,6 @@ class ConfigValle:
 
     def __post_init__(self):
         self.data_dir = Path(self.data_dir).absolute()
-        if not self.data_dir.is_dir():
-            raise NotADirectoryError(f'Prepared data directory not found: {self.data_dir}')
-
-        self.metadata_path = self.data_dir / 'metadata.tsv'
-        self.vocab_path = self.data_dir / 'vocab.json'
-        self.codes_dir = self.data_dir / 'codes'
-
-        if not self.metadata_path.is_file():
-            raise FileNotFoundError(f'Metadata file not found: {self.metadata_path}')
-        if not self.vocab_path.is_file():
-            raise FileNotFoundError(f'Vocabulary file not found: {self.vocab_path}')
-        if not self.codes_dir.is_dir():
-            raise NotADirectoryError(f'Codes directory not found: {self.codes_dir}')
-
-        with open(self.vocab_path, encoding='utf-8') as f:
-            vocab_data = json.load(f)
-            self.vocab_size = len(vocab_data) + 1
-
-        if self.model_name == 'valle_ar':
-            self.norm = 'LayerNorm'
-        else:
-            self.norm = 'AdaptiveLayerNorm'
-        if self.activation not in ['relu', 'gelu']:
-            raise ValueError('Activation function must be relu or gelu')
-
         self.ckpt_path = Path(self.ckpt_path).absolute()
         self.ckpt_path.mkdir(parents=True, exist_ok=True)
         self.log_path = Path(self.log_path).absolute()
@@ -112,6 +84,49 @@ class ConfigValle:
 
     def __repr__(self):
         return json.dumps(self.__dict__, default=str, indent=4)
+
+    @cached_property
+    def phoneme_to_id(self):
+        with open(self.vocab_path, encoding='utf-8') as f:
+            vocab_data = json.load(f)
+        return {phoneme: int(id_str) for id_str, phoneme in vocab_data.items()}
+
+    @cached_property
+    def vocab_size(self):
+        return len(self.phoneme_to_id) + 1
+
+    @property
+    def checkpoint_path(self):
+        if self.base_checkpoint is None:
+            raise ValueError('Base checkpoint is not set')
+        return self.ckpt_path / f'step={self.base_checkpoint}.ckpt'
+
+    @property
+    def metadata_path(self):
+        metadata_path = self.data_dir / 'metadata.tsv'
+        if not metadata_path.is_file():
+            raise FileNotFoundError(f'Metadata file not found: {metadata_path}')
+        return metadata_path
+
+    @property
+    def vocab_path(self):
+        vocab_path = self.data_dir / 'vocab.json'
+        if not vocab_path.is_file():
+            raise FileNotFoundError(f'Vocabulary file not found: {vocab_path}')
+        return vocab_path
+
+    @property
+    def codes_dir(self):
+        codes_dir = self.data_dir / 'codes'
+        if not codes_dir.is_dir():
+            raise NotADirectoryError(f'Codes directory not found: {codes_dir}')
+        return codes_dir
+
+    @property
+    def norm(self):
+        if self.model_name == 'valle_ar':
+            return 'LayerNorm'
+        return 'AdaptiveLayerNorm'
 
     @property
     def quantization_factor(self):

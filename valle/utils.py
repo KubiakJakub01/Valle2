@@ -1,4 +1,3 @@
-import json
 import logging
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -109,19 +108,6 @@ def load_tsv(
         line = line_.split('\t')
         items.append({c_: line[header.index(c)] for c, c_ in columns.items()})
     return items
-
-
-def load_vocabulary(vocab_path: Path) -> dict[str, int]:
-    """Loads the phoneme vocabulary and creates a phoneme-to-ID mapping."""
-    log_info(f'Loading vocabulary from: {vocab_path}')
-    try:
-        with open(vocab_path, encoding='utf-8') as f:
-            vocab_data = json.load(f)
-        phoneme_to_id = {phoneme: int(id_str) for id_str, phoneme in vocab_data.items()}
-        return phoneme_to_id
-    except Exception as e:
-        log_error(f'An unexpected error occurred while loading vocabulary: {e}')
-        raise
 
 
 def tokenize_phonemes(phonemes: str | list[str], phoneme_to_id: dict[str, int]) -> torch.Tensor:
