@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import lightning as L
 import torch
 
@@ -21,12 +19,12 @@ def get_model_class(model_name: str):
 
 
 def load_model_for_inference(
-    checkpoint_path: Path,
-    model_class: type[L.LightningModule],
     config: ConfigValle,
+    model_class: type[L.LightningModule],
     device: torch.device,
 ) -> L.LightningModule:
     """Load a Lightning model from a checkpoint."""
+    checkpoint_path = config.checkpoint_path
     log_info(f'Loading {model_class.__name__} from checkpoint: {checkpoint_path}')
     try:
         model = model_class.load_from_checkpoint(
