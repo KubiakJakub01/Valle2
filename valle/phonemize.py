@@ -24,6 +24,7 @@ def phonemize_text(texts: list[str], language='en-us', backend='espeak') -> list
         A list of phonemes for the input text.
     """
     texts = [REMOVE_PATTERN.sub('', text) for text in texts]
+    texts = [text if text else '-' for text in texts]
     phones = phonemize(
         texts,
         language=language,
