@@ -124,10 +124,12 @@ def load_vocabulary(vocab_path: Path) -> dict[str, int]:
         raise
 
 
-def tokenize_phonemes(phoneme_string: str, phoneme_to_id: dict[str, int]) -> torch.Tensor:
+def tokenize_phonemes(phonemes: str | list[str], phoneme_to_id: dict[str, int]) -> torch.Tensor:
     """Converts a space-separated phoneme string into a tensor of integer IDs."""
     tokens = []
-    for phoneme in phoneme_string.strip().split():
+    if isinstance(phonemes, str):
+        phonemes = phonemes.strip().split()
+    for phoneme in phonemes:
         token_id = phoneme_to_id.get(phoneme)
         if token_id is None:
             log_warning(f"Phoneme '{phoneme}' not found in vocabulary. Skipping.")
