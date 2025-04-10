@@ -70,7 +70,7 @@ def normalize_audio(audio: Tensor, orginal_sr: int, target_sr: int = SAMPLING_RA
     return audio
 
 
-def load_audio(path: Path, target_sr: int = SAMPLING_RATE) -> Tensor:
+def load_audio(path: Path, target_sr: int = SAMPLING_RATE) -> tuple[Tensor, int]:
     """Load audio from file."""
     audio, sr = torchaudio.load(path)
     audio = normalize_audio(audio, sr, target_sr)

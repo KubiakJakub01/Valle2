@@ -81,7 +81,7 @@ class ValleNAR(L.LightningModule):
         # Train on random layer
         layer = random.randint(1, self.config.num_quantizers - 1)
         codes_emb, prefix_len = self._prepare_audio_codes(codes, layer)
-        target = codes[:, layer, prefix_len.max().item() :]
+        target = codes[:, layer, int(prefix_len.max().item()) :]
 
         # Forward pass
         logits = self.forward(tokens, codes_emb, prefix_len.to(self.device), tokens_lens, layer)
@@ -94,7 +94,7 @@ class ValleNAR(L.LightningModule):
         return loss
 
     @torch.inference_mode()
-    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
+    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs):
         """Validation step.
 
         Args:
@@ -112,7 +112,7 @@ class ValleNAR(L.LightningModule):
         # Forward pass
         layer = random.randint(1, self.config.num_quantizers - 1)
         codes_emb, prefix_len = self._prepare_audio_codes(codes, layer)
-        target = codes[:, layer, prefix_len.max().item() :]
+        target = codes[:, layer, int(prefix_len.max().item()) :]
 
         # Forward pass
         logits = self.forward(tokens, codes_emb, prefix_len.to(self.device), tokens_lens, layer)
@@ -183,7 +183,7 @@ class ValleNAR(L.LightningModule):
         # Prepare mask
         codes_pad_mask = F.pad(
             build_pad_mask(codes_lens, self.device),
-            (tokens_lens.max().item(), 0),
+            (int(tokens_lens.max().item()), 0),
             value=False,
         )
 
@@ -197,7 +197,7 @@ class ValleNAR(L.LightningModule):
             embedding=self.stage_embs[layer - 1].weight,
         )
         transformer_output = transformer_output[
-            :, tokens_lens.max().item() + codes_lens.max().item() :
+            :, int(tokens_lens.max().item()) + int(codes_lens.max().item()) :
         ]
 
         # Project to output

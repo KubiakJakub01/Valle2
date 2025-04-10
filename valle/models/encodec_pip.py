@@ -12,7 +12,7 @@ class EncodecPip:
         model: Encodec model
     """
 
-    def __init__(self, device: str = 'cpu'):
+    def __init__(self, device: str | torch.device = 'cpu'):
         """Initialize Encodec model."""
         self.model = EncodecModel.encodec_model_24khz().to(device)
         self.model.set_target_bandwidth(ENCODEC_BANDWIDTH)

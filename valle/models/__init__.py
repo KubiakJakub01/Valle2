@@ -1,4 +1,3 @@
-import lightning as L
 import torch
 
 from ..config import ConfigValle
@@ -20,9 +19,9 @@ def get_model_class(model_name: str):
 
 def load_model_for_inference(
     config: ConfigValle,
-    model_class: type[L.LightningModule],
+    model_class: type[ValleAR] | type[ValleNAR],
     device: torch.device,
-) -> L.LightningModule:
+):
     """Load a Lightning model from a checkpoint."""
     checkpoint_path = config.checkpoint_path
     log_info(f'Loading {model_class.__name__} from checkpoint: {checkpoint_path}')

@@ -83,7 +83,7 @@ class ValleAR(L.LightningModule):
         return loss
 
     @torch.inference_mode()
-    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs) -> torch.Tensor:
+    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs):
         """Validation step.
 
         Args:
