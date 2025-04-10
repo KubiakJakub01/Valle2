@@ -4,11 +4,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from torch import optim
+from torchmetrics.classification import MulticlassAccuracy
 
 from ..config import ConfigValle
 from ..utils import to_device
+from .encodec_pip import EncodecPip
 from .modules import PositionalEncoding, TokenEmbedding, Transformer
-from .utils import build_attn_mask, build_pad_mask, get_best_beam, topk_sampling
+from .utils import (
+    build_attn_mask,
+    build_pad_mask,
+    get_best_beam,
+    prepare_prompt_codes,
+    topk_sampling,
+)
 
 
 class ValleAR(L.LightningModule):
@@ -27,6 +35,16 @@ class ValleAR(L.LightningModule):
 
         # Project to output
         self.proj = nn.Linear(self.config.d_model, self.config.num_audio_tokens + 1, bias=False)
+
+        # Metrics
+        self.accuracy = MulticlassAccuracy(
+            self.config.num_audio_tokens + 1,
+            average='micro',
+            multidim_average='global',
+            ignore_index=self.eos_token,
+        )
+
+        self.validation_dict: dict[str, torch.Tensor] = {}
 
     @property
     def device(self):
@@ -57,6 +75,91 @@ class ValleAR(L.LightningModule):
         tokens_lens = batch['tokens_lens']
         target = batch['target']
 
+        logits = self.forward(tokens, codes, codes_lens, tokens_lens)
+        loss = F.cross_entropy(logits, target)
+        accuracy = self.accuracy(logits, target)
+        self.log('train/loss', loss)
+        self.log('train/acc', accuracy)
+        return loss
+
+    @torch.inference_mode()
+    def validation_step(self, batch: dict[str, torch.Tensor], **kwargs):
+        """Validation step.
+
+        Args:
+            batch: Batch data
+
+        Returns:
+            loss: Loss value
+        """
+        # pylint: disable=arguments-differ
+        batch = to_device(batch, self.device)
+        codes = batch['codes']
+        codes_lens = batch['codes_lens']
+        tokens = batch['tokens']
+        tokens_lens = batch['tokens_lens']
+        target = batch['target']
+
+        # Forward pass
+        logits = self.forward(tokens, codes, codes_lens, tokens_lens)
+        loss = F.cross_entropy(logits, target)
+        accuracy = self.accuracy(logits, target)
+
+        # Log metrics
+        self.log('val/loss', loss)
+        self.log('val/acc', accuracy)
+
+        if not self.validation_dict:
+            self.validation_dict['codes'] = codes
+            self.validation_dict['tokens'] = tokens
+
+    def on_validation_epoch_end(self):
+        """On validation epoch end."""
+        if not self.validation_dict:
+            return
+
+        codes: torch.Tensor = self.validation_dict['codes']
+        tokens: torch.Tensor = self.validation_dict['tokens']
+
+        # Make inference
+        prompt_codes, _ = prepare_prompt_codes(codes)
+        output_codes = rearrange(
+            self.generate(rearrange(tokens, '1 t -> t'), prompt_codes), 't -> 1 t'
+        )
+        output_codes = torch.cat((prompt_codes[:, 1:], output_codes), dim=1)
+
+        # Log audio
+        encodec = EncodecPip(device='cpu')
+        output_audio = encodec.decode(output_codes.cpu())
+        target_audio = encodec.decode(codes[:, 1:].cpu())
+        self.logger.experiment.add_audio(
+            'val/output_audio', output_audio, sample_rate=encodec.sampling_rate
+        )
+        self.logger.experiment.add_audio(
+            'val/target_audio', target_audio, sample_rate=encodec.sampling_rate
+        )
+
+        self.validation_dict = {}
+
+    def forward(
+        self,
+        tokens: torch.Tensor,
+        codes: torch.Tensor,
+        codes_lens: torch.Tensor,
+        tokens_lens: torch.Tensor,
+    ) -> torch.Tensor:
+        """Forward pass.
+
+        Args:
+            tokens: Input tokens (b t)
+            codes: Input codes (b t c)
+            codes_lens: Lengths of input codes (b)
+            tokens_lens: Lengths of input tokens (b)
+
+        Returns:
+            logits: Logits (b c t)
+        """
+        # pylint: disable=arguments-differ
         # Prepare tokens
         tokens = self.tokens_emb(tokens)  # (b t c)
         tokens = self.tokens_position_emb(tokens)
@@ -81,13 +184,7 @@ class ValleAR(L.LightningModule):
 
         # Project to output
         logits = rearrange(self.proj(transformer_output), 'b t c -> b c t')
-
-        # Compute loss
-        loss = F.cross_entropy(logits, target)
-
-        self.log('train/loss', loss)
-
-        return loss
+        return logits
 
     @torch.inference_mode()
     def generate(
@@ -108,8 +205,9 @@ class ValleAR(L.LightningModule):
         """
         assert prompt_tokens.dim() == 1, 'Prompt tokens should be 1D tensor.'
         assert prompt_codes.dim() == 2, 'Prompt codes should be 2D tensor.'
-        if target_tokens is not None:
-            assert target_tokens.dim() == 1, 'Target tokens should be 1D tensor.'
+        assert (
+            target_tokens is None or target_tokens.dim() == 1
+        ), 'Target tokens should be 1D tensor.'
 
         # Get first layer from prompt codes and add bos token
         prompt_codes = rearrange(
